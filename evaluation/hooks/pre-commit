@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Pre-commit hook for Mnemosyne evaluation gate.
+
+安装方法:
+    # 在项目根目录执行
+    cp evaluation/hooks/pre-commit .git/hooks/pre-commit
+    chmod +x .git/hooks/pre-commit
+
+或者使用 git config:
+    git config core.hooksPath evaluation/hooks
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from evaluation.validators.gate_checker import GateChecker
+
+
+def main():
+    """Run pre-commit gate checks."""
+    print("🔍 Running Mnemosyne Evaluation Gate...")
+    print()
+
+    # Initialize gate checker
+    gate = GateChecker(
+        baseline_path="evaluation/baselines/.baseline.json",
+        test_dir="service/tests",
+        benchmark_script="service/mnemosyne/examples/benchmark_search.py",
+        coverage_threshold=80.0,
+        p95_threshold_ms=500.0,
+        regression_threshold_percent=10.0,
+        report_dir="evaluation/reports"
+    )
+
+    try:
+        # Run gate checks
+        result = gate.run()
+
+        # Print summary
+        gate.print_summary(result)
+
+        # Exit with appropriate code
+        if result.passed:
+            print("\n✅ Commit allowed")
+            sys.exit(0)
+        else:
+            print("\n❌ Commit blocked by gate check")
+            print("\n请修复上述问题后重试，或使用 --no-verify 跳过检查:")
+            print("  git commit --no-verify -m '你的提交信息'")
+            sys.exit(1)
+
+    except KeyboardInterrupt:
+        print("\n\n⚠️ Gate check interrupted")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Gate check error: {e}")
+        print("\n建议:")
+        print("  1. 检查测试环境配置")
+        print("  2. 运行 'python -m pytest service/tests' 验证测试")
+        print("  3. 使用 'git commit --no-verify' 跳过检查（不推荐）")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

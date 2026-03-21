@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "created_at": null,
+  "updated_at": null,
+  "p95_latency_ms": null,
+  "p99_latency_ms": null,
+  "mean_latency_ms": null,
+  "median_latency_ms": null,
+  "min_latency_ms": null,
+  "max_latency_ms": null,
+  "test_coverage": null,
+  "test_pass_rate": null,
+  "total_tests": null,
+  "passed_tests": null,
+  "failed_tests": null,
+  "commit_hash": null,
+  "branch": null
+}
