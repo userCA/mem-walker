@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python -c:*)",
+      "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python -m pytest --version)",
+      "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python -m pytest tests/ -v --tb=short --override-ini=addopts=)",
+      "Bash(npm install)",
+      "Bash(npm run build)",
+      "Bash(cat:*)",
+      "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/pip:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(mkdir:*)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:subagent-driven-development)",
+      "Bash(python -m pytest:*)",
+      "Bash(tree:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
