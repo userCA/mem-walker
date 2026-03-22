@@ -8,9 +8,12 @@ class SessionStore:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
-        self._init_db()
+        self._initialized = False
 
-    async def _init_db(self):
+    async def _ensure_init(self):
+        """Lazy initialization - create table if not exists."""
+        if self._initialized:
+            return
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -25,8 +28,10 @@ class SessionStore:
                 )
             """)
             await db.commit()
+        self._initialized = True
 
     async def create_session(self, title: str, user_id: str) -> dict:
+        await self._ensure_init()
         session_id = str(uuid.uuid4())
         now = datetime.now()
         async with aiosqlite.connect(self.db_path) as db:
@@ -47,6 +52,7 @@ class SessionStore:
         }
 
     async def get_session(self, session_id: str) -> Optional[dict]:
+        await self._ensure_init()
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
                 "SELECT * FROM chat_sessions WHERE id = ?", (session_id,)
@@ -57,6 +63,7 @@ class SessionStore:
         return None
 
     async def list_sessions(self, user_id: str) -> list[dict]:
+        await self._ensure_init()
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
                 "SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC",
@@ -66,6 +73,7 @@ class SessionStore:
                 return [self._row_to_dict(row) for row in rows]
 
     async def update_session(self, session_id: str, updates: dict) -> Optional[dict]:
+        await self._ensure_init()
         updates["updated_at"] = datetime.now()
         set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
         values = list(updates.values()) + [session_id]
@@ -78,12 +86,14 @@ class SessionStore:
         return await self.get_session(session_id)
 
     async def delete_session(self, session_id: str) -> bool:
+        await self._ensure_init()
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
             await db.commit()
         return True
 
     async def increment_memory_count(self, session_id: str) -> None:
+        await self._ensure_init()
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 UPDATE chat_sessions
