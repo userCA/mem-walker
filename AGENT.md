@@ -109,6 +109,19 @@ cat evaluation/reports/latest.json 2>/dev/null || echo "No report yet"
 
 ```
 memory-module/
+├── server/                  # FastAPI 后端
+│   └── app/
+│       ├── api/            # API 端点 (chat, memory, backend)
+│       ├── models.py       # Pydantic 模型
+│       ├── database.py     # 内存数据库
+│       └── config.py       # 配置管理
+├── web/                     # React 前端
+│   └── src/
+│       ├── api/            # API 客户端
+│       ├── components/     # UI 组件
+│       ├── hooks/          # React Hooks
+│       ├── stores/         # Zustand 状态管理
+│       └── types/          # TypeScript 类型
 ├── service/
 │   ├── mnemosyne/           # 核心代码
 │   │   ├── memory/          # 记忆系统
