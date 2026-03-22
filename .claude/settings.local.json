@@ -36,7 +36,8 @@
       "Bash(git check-ignore:*)",
       "Bash(poetry:*)",
       "Bash(PYTHONPATH=/Users/yuanbaishu/pythonProject/memory-module/service python:*)",
-      "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python:*)"
+      "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python:*)",
+      "Bash(/Users/yuanbaishu/.venv-milvus/bin/python -m pytest ../tests/integration/ -v --tb=short)"
     ],
     "deny": [],
     "ask": []
