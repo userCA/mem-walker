@@ -8,6 +8,12 @@
 - [ ] Phase 3: 性能优化与回归检测
 
 ### 最近进度
+- 2026-03-22: 完成记忆对话功能 + DeepSeek AI 集成
+  - server/app/api/chat.py - 对话 API 端点
+  - web/src/components/chat/ - 聊天 UI 组件
+  - web/src/hooks/useChat.ts - 聊天状态管理
+  - 集成 DeepSeek API 实现 AI 对话
+  - 修复消息显示样式问题
 - 2026-03-21: 完成 AI 工程评估工作流
   - evaluation/validators/test_runner.py - 测试执行器
   - evaluation/validators/benchmark_runner.py - 性能基准
@@ -131,6 +137,7 @@ memory-module/
 - [ ] 安装 pre-commit hook: `python evaluation/install_hook.py`
 
 ### 待完成
+- [ ] 后端替换：使用 mnemosyne 系统作为后端
 - [ ] GitHub Actions CI/CD 集成
 - [ ] 性能基线数据采集
 - [ ] 评估报告自动化生成
