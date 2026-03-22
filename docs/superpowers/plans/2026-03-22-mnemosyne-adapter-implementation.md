@@ -104,6 +104,7 @@ adapter = [
     "fastapi>=0.109.0",
     "uvicorn>=0.27.0",
     "pydantic>=2.5.0",
+    "pydantic-settings>=2.0.0",
     "httpx>=0.26.0",
     "structlog>=24.1.0",
     "aiosqlite>=0.19.0",
@@ -260,8 +261,46 @@ git commit -m "feat(adapter): add DTOs for common and chat"
 **Files:**
 - Create: `service/mnemosyne/adapter/dto/memory_dto.py`
 - Create: `service/mnemosyne/adapter/dto/backend_dto.py`
+- Create: `tests/unit/test_dto/test_memory_dto.py`
+- Create: `tests/unit/test_dto/test_backend_dto.py`
 
-- [ ] **Step 1: 编写 memory_dto.py**
+- [ ] **Step 1: 编写 memory_dto.py 测试**
+
+```python
+# tests/unit/test_dto/test_memory_dto.py
+import pytest
+from mnemosyne.adapter.dto.memory_dto import Memory, MemoryStatus, MemoryPriority, CreateMemoryRequest
+
+def test_memory_dto_creation():
+    memory = Memory(
+        id="test-123",
+        title="Test Memory",
+        content="This is test content",
+        status=MemoryStatus.ACTIVE,
+        priority=MemoryPriority.HIGH
+    )
+    assert memory.id == "test-123"
+    assert memory.title == "Test Memory"
+    assert memory.status == MemoryStatus.ACTIVE
+    assert memory.priority == MemoryPriority.HIGH
+
+def test_create_memory_request():
+    request = CreateMemoryRequest(
+        title="New Memory",
+        content="Memory content"
+    )
+    assert request.title == "New Memory"
+    assert request.priority == MemoryPriority.MEDIUM  # default
+```
+
+- [ ] **Step 2: 运行测试验证失败**
+
+```bash
+pytest tests/unit/test_dto/test_memory_dto.py -v
+# Expected: ERROR - module not found
+```
+
+- [ ] **Step 3: 编写 memory_dto.py 实现**
 
 ```python
 # service/mnemosyne/adapter/dto/memory_dto.py
@@ -330,59 +369,39 @@ class UpdateMemoryRequest(BaseModel):
     tags: Optional[list[str]] = None
 ```
 
-- [ ] **Step 2: 编写 backend_dto.py**
+- [ ] **Step 4: 编写 backend_dto.py 测试**
+
+```python
+# tests/unit/test_dto/test_backend_dto.py
+import pytest
+from mnemosyne.adapter.dto.backend_dto import BackendConnection, BackendProvider, BackendStatus
+
+def test_backend_connection_defaults():
+    conn = BackendConnection(provider=BackendProvider.MILVUS)
+    assert conn.provider == BackendProvider.MILVUS
+    assert conn.status == BackendStatus.DISCONNECTED
+    assert conn.host == "localhost"
+```
+
+- [ ] **Step 5: 编写 backend_dto.py 实现**
 
 ```python
 # service/mnemosyne/adapter/dto/backend_dto.py
-from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime
-from enum import Enum
-
-class BackendProvider(str, Enum):
-    MILVUS = "milvus"
-    SQLITE = "sqlite"
-    CHROMA = "chroma"
-    QDRANT = "qdrant"
-    WEAVIATE = "weaviate"
-
-class BackendStatus(str, Enum):
-    CONNECTED = "connected"
-    DISCONNECTED = "disconnected"
-    ERROR = "error"
-
-class BackendConnection(BaseModel):
-    provider: BackendProvider
-    status: BackendStatus = BackendStatus.DISCONNECTED
-    host: str = "localhost"
-    port: int = 19530
-    database: str = "default"
-
-class BackendConfig(BaseModel):
-    provider: BackendProvider
-    host: str = "localhost"
-    port: int = 19530
-    database: str = "default"
-    username: Optional[str] = None
-    password: Optional[str] = None
-    ssl: bool = False
-    timeout: int = 30
-    vectorDimension: int = 768
+# ... (existing implementation)
 ```
 
-- [ ] **Step 3: 编写测试并运行**
+- [ ] **Step 6: 运行测试验证通过**
 
 ```bash
 pytest tests/unit/test_dto/test_memory_dto.py tests/unit/test_dto/test_backend_dto.py -v
+# Expected: 3 tests PASS
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add service/mnemosyne/adapter/dto/memory_dto.py service/mnemosyne/adapter/dto/backend_dto.py
+git add service/mnemosyne/adapter/dto/memory_dto.py service/mnemosyne/adapter/dto/backend_dto.py tests/unit/test_dto/test_memory_dto.py tests/unit/test_dto/test_backend_dto.py
 git commit -m "feat(adapter): add Memory and Backend DTOs"
-```
-
 ---
 
 ## Task 4: 异常与配置层
@@ -390,8 +409,41 @@ git commit -m "feat(adapter): add Memory and Backend DTOs"
 **Files:**
 - Create: `service/mnemosyne/adapter/exception/adapters.py`
 - Create: `service/mnemosyne/adapter/config.py`
+- Create: `tests/unit/test_exception/test_adapters.py`
 
-- [ ] **Step 1: 编写 adapters.py**
+- [ ] **Step 1: 编写 adapters.py 测试**
+
+```python
+# tests/unit/test_exception/test_adapters.py
+import pytest
+from mnemosyne.adapter.exception.adapters import AdapterError, NotFoundError, ValidationError, LLMError
+
+def test_adapter_error():
+    err = AdapterError(code="TEST", message="test error", status_code=500)
+    assert err.code == "TEST"
+    assert err.message == "test error"
+    assert err.status_code == 500
+
+def test_not_found_error():
+    err = NotFoundError("Memory", "mem-123")
+    assert err.code == "NOT_FOUND"
+    assert err.status_code == 404
+    assert "mem-123" in err.message
+
+def test_llm_error():
+    err = LLMError("API failed")
+    assert err.code == "LLM_ERROR"
+    assert err.status_code == 502
+```
+
+- [ ] **Step 2: 运行测试验证失败**
+
+```bash
+pytest tests/unit/test_exception/test_adapters.py -v
+# Expected: ERROR - module not found
+```
+
+- [ ] **Step 3: 编写 adapters.py 实现**
 
 ```python
 # service/mnemosyne/adapter/exception/adapters.py
@@ -425,7 +477,7 @@ class LLMError(AdapterError):
         super().__init__(code="LLM_ERROR", message=message, status_code=502)
 ```
 
-- [ ] **Step 2: 编写 config.py**
+- [ ] **Step 4 (continued): 编写 config.py**
 
 ```python
 # service/mnemosyne/adapter/config.py
@@ -463,10 +515,17 @@ def get_config() -> AdapterConfig:
     return AdapterConfig()
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 5: 运行测试验证通过**
 
 ```bash
-git add service/mnemosyne/adapter/exception/adapters.py service/mnemosyne/adapter/config.py
+pytest tests/unit/test_exception/ -v
+# Expected: tests PASS
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add service/mnemosyne/adapter/exception/adapters.py service/mnemosyne/adapter/config.py tests/unit/test_exception/
 git commit -m "feat(adapter): add exception classes and config"
 ```
 
@@ -847,6 +906,7 @@ git commit -m "feat(adapter): implement DTO mappers"
 # service/mnemosyne/adapter/llm/base.py
 from abc import ABC, abstractmethod
 from typing import List, Optional
+from pydantic import BaseModel
 
 class LLMMessage(BaseModel):
     role: str
@@ -989,6 +1049,18 @@ class MemoryService:
         )
         return await self.get(memory_id)
 
+    async def create_episodic_memory(self, content: str, user_id: str, metadata: dict) -> str:
+        """Store a chat message as episodic memory."""
+        return self._memory.add(
+            messages=content,
+            user_id=user_id,
+            metadata={**metadata, "memory_type": "episodic"}
+        )
+
+    def search_sync(self, query: str, user_id: str, limit: int = 10) -> List[dict]:
+        """Synchronous search for memories (used by ChatService for context building)."""
+        return self._memory.search(query, user_id=user_id, limit=limit)
+
     async def update(self, memory_id: str, updates: dict) -> MemoryDTO:
         if updates.get("content"):
             self._memory.update(memory_id, updates["content"])
@@ -1049,10 +1121,11 @@ from ..exception.adapters import NotFoundError
 class ChatService:
     """Service layer for chat operations."""
 
-    def __init__(self, session_store: SessionStore, llm_provider: LLMProvider):
+    def __init__(self, session_store: SessionStore, llm_provider: LLMProvider, memory_service=None):
         self._store = session_store
         self._mapper = ChatMapper()
         self._llm = llm_provider
+        self._memory_service = memory_service  # For episodic memory storage
 
     async def create_session(self, title: str = "新对话", user_id: str = "default_user") -> ChatSession:
         session_data = await self._store.create_session(title=title, user_id=user_id)
@@ -1102,7 +1175,8 @@ class ChatService:
         self,
         session_id: str,
         content: str,
-        config: Optional[dict] = None
+        config: Optional[dict] = None,
+        user_id: str = "default_user"
     ) -> tuple[ChatMessage, ChatMessage]:
         session = await self.get_session(session_id)
 
@@ -1114,8 +1188,20 @@ class ChatService:
             createdAt=datetime.now()
         )
 
-        # Build context with relevant memories
-        context = self._build_memory_context(session_id)
+        # Store user message as episodic memory in mnemosyne
+        if self._memory_service:
+            await self._memory_service.create_episodic_memory(
+                content=user_msg.content,
+                user_id=user_id,
+                metadata={
+                    "session_id": session_id,
+                    "role": "user",
+                    "message_id": user_msg.id
+                }
+            )
+
+        # Build context with relevant memories (from mnemosyne)
+        context = self._build_memory_context(content, user_id)
 
         # Build prompt with context
         system_prompt = f"你是 Mnemosyne，一个智能记忆助手。\n{context}"
@@ -1140,21 +1226,80 @@ class ChatService:
             createdAt=datetime.now()
         )
 
+        # Store assistant message as episodic memory in mnemosyne
+        if self._memory_service:
+            await self._memory_service.create_episodic_memory(
+                content=assistant_msg.content,
+                user_id=user_id,
+                metadata={
+                    "session_id": session_id,
+                    "role": "assistant",
+                    "message_id": assistant_msg.id
+                }
+            )
+
         # Update session memory count
         await self._store.increment_memory_count(session_id)
 
         return user_msg, assistant_msg
 
-    def _build_memory_context(self, session_id: str) -> str:
-        """Build memory context from session history."""
-        # TODO: Implement memory retrieval
-        return "相关记忆：\n（暂无）"
+    def _build_memory_context(self, query: str, user_id: str) -> str:
+        """Build memory context by retrieving relevant memories from mnemosyne."""
+        if not self._memory_service:
+            return "相关记忆：\n（暂无）"
+
+        # Search for relevant memories
+        memories = self._memory_service.search_sync(query, user_id, limit=5)
+        if not memories:
+            return "相关记忆：\n（暂无）"
+
+        context_parts = ["相关记忆："]
+        for i, mem in enumerate(memories, 1):
+            context_parts.append(f"{i}. {mem.get('content', '')}")
+        return "\n".join(context_parts)
 
     async def delete_session(self, session_id: str) -> bool:
         return await self._store.delete_session(session_id)
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: 编写 backend_service.py**
+
+```python
+# service/mnemosyne/adapter/service/backend_service.py
+from typing import Dict, Optional
+from ..dto.backend_dto import BackendConnection, BackendConfig, BackendStatus
+
+class BackendService:
+    """Service layer for backend operations."""
+
+    def __init__(self):
+        self._backends: Dict[str, BackendConnection] = {}
+
+    async def list_backends(self) -> list[BackendConnection]:
+        return list(self._backends.values())
+
+    async def get_backend(self, provider: str) -> Optional[BackendConnection]:
+        return self._backends.get(provider)
+
+    async def connect(self, config: BackendConfig) -> BackendConnection:
+        backend = BackendConnection(
+            provider=config.provider,
+            status=BackendStatus.CONNECTED,
+            host=config.host,
+            port=config.port,
+            database=config.database
+        )
+        self._backends[config.provider.value] = backend
+        return backend
+
+    async def disconnect(self, provider: str) -> bool:
+        if provider in self._backends:
+            self._backends[provider].status = BackendStatus.DISCONNECTED
+            return True
+        return False
+```
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add service/mnemosyne/adapter/service/
@@ -1180,13 +1325,9 @@ from ..dto.common import ApiResponse, PaginatedResponse
 from ..dto.chat_dto import ChatSession, ChatConfig, SendMessageRequest
 from ..service.chat_service import ChatService
 from ..exception.adapters import AdapterError
+from main import get_chat_service
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-
-def get_chat_service() -> ChatService:
-    # Dependency injection - will be initialized in main.py
-    from main import chat_service
-    return chat_service
 
 @router.get("/sessions", response_model=ApiResponse)
 async def list_sessions(
@@ -1262,12 +1403,9 @@ from typing import Optional
 from ..dto.common import ApiResponse, PaginatedResponse
 from ..dto.memory_dto import Memory, CreateMemoryRequest, UpdateMemoryRequest, MemoryStats
 from ..service.memory_service import MemoryService
+from main import get_memory_service
 
 router = APIRouter(prefix="/memories", tags=["memories"])
-
-def get_memory_service() -> MemoryService:
-    from main import memory_service
-    return memory_service
 
 @router.get("/", response_model=ApiResponse)
 async def list_memories(
@@ -1478,8 +1616,9 @@ api_router.include_router(backend_router)
 
 ```python
 # service/mnemosyne/adapter/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from .config import get_config
 from .router import api_router
 from .middleware.logging import LoggingMiddleware
@@ -1493,14 +1632,12 @@ from .service.backend_service import BackendService
 from .llm.deepseek import DeepSeekProvider
 from mnemosyne import Memory
 
-# Global service instances
-chat_service: ChatService = None
-memory_service: MemoryService = None
-backend_service: BackendService = None
+# Global app state
+_app_state = {"initialized": False}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup - initialize services in app state
     config = get_config()
 
     # Initialize mnemosyne
@@ -1520,15 +1657,23 @@ async def lifespan(app: FastAPI):
         llm = DeepSeekProvider(api_key=config.deepseek_api_key)
 
     # Initialize services
-    global chat_service, memory_service, backend_service
     memory_service = MemoryService(memory)
-    chat_service = ChatService(session_store, llm)
+    chat_service = ChatService(session_store, llm, memory_service)
     backend_service = BackendService()
+
+    # Store in app state
+    app.state.memory_service = memory_service
+    app.state.chat_service = chat_service
+    app.state.backend_service = backend_service
+    app.state.memory = memory  # For cleanup
+
+    _app_state["initialized"] = True
 
     yield
 
     # Shutdown
-    memory.close()
+    if hasattr(app.state, "memory"):
+        app.state.memory.close()
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -1554,6 +1699,19 @@ def create_app() -> FastAPI:
     return app
 
 app = create_app()
+
+# Dependency injection helpers
+def get_chat_service() -> ChatService:
+    from fastapi import Request
+    return Request.state.chat_service
+
+def get_memory_service() -> MemoryService:
+    from fastapi import Request
+    return Request.state.memory_service
+
+def get_backend_service() -> BackendService:
+    from fastapi import Request
+    return Request.state.backend_service
 ```
 
 - [ ] **Step 3: Commit**
