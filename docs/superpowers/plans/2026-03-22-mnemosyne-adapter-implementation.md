@@ -387,7 +387,40 @@ def test_backend_connection_defaults():
 
 ```python
 # service/mnemosyne/adapter/dto/backend_dto.py
-# ... (existing implementation)
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
+from enum import Enum
+
+class BackendProvider(str, Enum):
+    MILVUS = "milvus"
+    SQLITE = "sqlite"
+    CHROMA = "chroma"
+    QDRANT = "qdrant"
+    WEAVIATE = "weaviate"
+
+class BackendStatus(str, Enum):
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+    ERROR = "error"
+
+class BackendConnection(BaseModel):
+    provider: BackendProvider
+    status: BackendStatus = BackendStatus.DISCONNECTED
+    host: str = "localhost"
+    port: int = 19530
+    database: str = "default"
+
+class BackendConfig(BaseModel):
+    provider: BackendProvider
+    host: str = "localhost"
+    port: int = 19530
+    database: str = "default"
+    username: Optional[str] = None
+    password: Optional[str] = None
+    ssl: bool = False
+    timeout: int = 30
+    vectorDimension: int = 768
 ```
 
 - [ ] **Step 6: 运行测试验证通过**
@@ -993,8 +1026,40 @@ class OpenAIProvider(LLMProvider):
         self.model = model
 
     async def chat(self, messages: List[LLMMessage], **kwargs) -> str:
-        # Similar implementation to DeepSeek
-        ...
+        temperature = kwargs.get("temperature", 0.7)
+        max_tokens = kwargs.get("max_tokens", 2000)
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": self.model,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
+                response.raise_for_status()
+                result = response.json()
+                if result.get("choices") and len(result["choices"]) > 0:
+                    return result["choices"][0]["message"]["content"]
+                raise LLMError("No response content from OpenAI")
+        except httpx.HTTPStatusError as e:
+            raise LLMError(f"OpenAI API error: {e.response.status_code}")
+        except Exception as e:
+            raise LLMError(f"OpenAI call failed: {str(e)}")
+
+    async def close(self):
+        pass
 ```
 
 - [ ] **Step 4: Commit**
@@ -1474,7 +1539,48 @@ async def delete_memory(memory_id: str, service: MemoryService = Depends(get_mem
     return ApiResponse(success=True, data={"message": "Memory deleted"})
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: 编写 backend_controller.py**
+
+```python
+# service/mnemosyne/adapter/controller/backend_controller.py
+from fastapi import APIRouter, Depends
+from ..dto.common import ApiResponse
+from ..dto.backend_dto import BackendConfig
+from ..service.backend_service import BackendService
+from main import get_backend_service
+
+router = APIRouter(prefix="/backends", tags=["backends"])
+
+@router.get("/", response_model=ApiResponse)
+async def list_backends(service: BackendService = Depends(get_backend_service)):
+    backends = await service.list_backends()
+    return ApiResponse(success=True, data=[b.model_dump() for b in backends])
+
+@router.get("/{provider}", response_model=ApiResponse)
+async def get_backend(provider: str, service: BackendService = Depends(get_backend_service)):
+    backend = await service.get_backend(provider)
+    if not backend:
+        from ..exception.adapters import NotFoundError
+        raise NotFoundError("Backend", provider)
+    return ApiResponse(success=True, data=backend.model_dump())
+
+@router.post("/connect", response_model=ApiResponse)
+async def connect_backend(config: BackendConfig, service: BackendService = Depends(get_backend_service)):
+    backend = await service.connect(config)
+    return ApiResponse(success=True, data=backend.model_dump())
+
+@router.post("/{provider}/disconnect", response_model=ApiResponse)
+async def disconnect_backend(provider: str, service: BackendService = Depends(get_backend_service)):
+    success = await service.disconnect(provider)
+    return ApiResponse(success=True, data={"success": success})
+
+@router.post("/test", response_model=ApiResponse)
+async def test_connection(config: BackendConfig, service: BackendService = Depends(get_backend_service)):
+    # Test logic would connect and verify
+    return ApiResponse(success=True, data={"success": True})
+```
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add service/mnemosyne/adapter/controller/
@@ -1597,7 +1703,24 @@ git commit -m "feat(adapter): implement middleware layer"
 - Create: `service/mnemosyne/adapter/router/backend.py`
 - Create: `service/mnemosyne/adapter/main.py`
 
-- [ ] **Step 1: 创建路由聚合文件 (router/__init__.py)**
+- [ ] **Step 1: 创建路由文件**
+
+```python
+# service/mnemosyne/adapter/router/chat.py
+from ..controller.chat_controller import router as chat_router
+```
+
+```python
+# service/mnemosyne/adapter/router/memory.py
+from ..controller.memory_controller import router as memory_router
+```
+
+```python
+# service/mnemosyne/adapter/router/backend.py
+from ..controller.backend_controller import router as backend_router
+```
+
+- [ ] **Step 2: 创建路由聚合文件 (router/__init__.py)**
 
 ```python
 # service/mnemosyne/adapter/router/__init__.py
@@ -1612,7 +1735,7 @@ api_router.include_router(memory_router)
 api_router.include_router(backend_router)
 ```
 
-- [ ] **Step 2: 编写 main.py**
+- [ ] **Step 3: 编写 main.py**
 
 ```python
 # service/mnemosyne/adapter/main.py
@@ -1714,7 +1837,7 @@ def get_backend_service() -> BackendService:
     return Request.state.backend_service
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add service/mnemosyne/adapter/router/ service/mnemosyne/adapter/main.py
