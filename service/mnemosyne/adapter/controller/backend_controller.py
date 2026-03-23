@@ -5,9 +5,15 @@ from ..service.backend_service import BackendService
 
 router = APIRouter(prefix="/backends", tags=["backends"])
 
-async def get_backend_service() -> BackendService:
-    from fastapi import Request
-    return Request.state.backend_service
+# Global service reference - populated by main.py lifespan
+_backend_service_ref: BackendService = None
+
+def set_backend_service_ref(service: BackendService):
+    global _backend_service_ref
+    _backend_service_ref = service
+
+def get_backend_service() -> BackendService:
+    return _backend_service_ref
 
 @router.get("/", response_model=ApiResponse)
 async def list_backends(service: BackendService = Depends(get_backend_service)):

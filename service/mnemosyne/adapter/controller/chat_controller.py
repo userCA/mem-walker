@@ -6,10 +6,15 @@ from ..service.chat_service import ChatService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-# DI helper will be defined in main.py, use a placeholder here
-async def get_chat_service() -> ChatService:
-    from fastapi import Request
-    return Request.state.chat_service
+# Global service reference - populated by main.py lifespan
+_chat_service_ref: ChatService = None
+
+def set_chat_service_ref(service: ChatService):
+    global _chat_service_ref
+    _chat_service_ref = service
+
+def get_chat_service() -> ChatService:
+    return _chat_service_ref
 
 @router.get("/sessions", response_model=ApiResponse)
 async def list_sessions(

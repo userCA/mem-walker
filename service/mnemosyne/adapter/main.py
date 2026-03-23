@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from .config import get_config
@@ -13,17 +13,29 @@ from .service.memory_service import MemoryService
 from .service.backend_service import BackendService
 from .llm.deepseek import DeepSeekProvider
 from mnemosyne import Memory
+from mnemosyne.embeddings import FastEmbedEmbedding
+from mnemosyne.embeddings.configs import FastEmbedConfig
+from .controller.chat_controller import set_chat_service_ref
+from .controller.memory_controller import set_memory_service_ref
+from .controller.backend_controller import set_backend_service_ref
 
 # Global app state
 _app_state = {"initialized": False}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup - initialize services in app state
+    # Startup - initialize services
     config = get_config()
 
-    # Initialize mnemosyne
-    memory = Memory()
+    # Initialize embedding with FastEmbed (local, no API key needed)
+    embedding_config = FastEmbedConfig(
+        model="BAAI/bge-small-en-v1.5",
+        dimension=384
+    )
+    base_embedding = FastEmbedEmbedding(embedding_config)
+
+    # Initialize mnemosyne with FastEmbed embedding
+    memory = Memory(embedding=base_embedding)
 
     # Initialize SessionStore
     session_store = SessionStore(f"./data/{config.storage_backend}_sessions.db")
@@ -43,11 +55,13 @@ async def lifespan(app: FastAPI):
     chat_service = ChatService(session_store, llm, memory_service)
     backend_service = BackendService()
 
-    # Store in app state
-    app.state.memory_service = memory_service
-    app.state.chat_service = chat_service
-    app.state.backend_service = backend_service
-    app.state.memory = memory  # For cleanup
+    # Populate controller global references
+    set_memory_service_ref(memory_service)
+    set_chat_service_ref(chat_service)
+    set_backend_service_ref(backend_service)
+
+    # Store memory for cleanup
+    app.state.memory = memory
 
     _app_state["initialized"] = True
 
@@ -81,16 +95,3 @@ def create_app() -> FastAPI:
     return app
 
 app = create_app()
-
-# Dependency injection helpers
-def get_chat_service() -> ChatService:
-    from fastapi import Request
-    return Request.state.chat_service
-
-def get_memory_service() -> MemoryService:
-    from fastapi import Request
-    return Request.state.memory_service
-
-def get_backend_service() -> BackendService:
-    from fastapi import Request
-    return Request.state.backend_service

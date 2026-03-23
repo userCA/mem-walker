@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 class AdapterConfig(BaseSettings):
@@ -23,9 +23,11 @@ class AdapterConfig(BaseSettings):
     log_level: str = "INFO"
     enable_tracing: bool = True
 
-    class Config:
-        env_file = ".env"
-        env_prefix = "ADAPTER_"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="ADAPTER_",
+        extra="ignore"  # Ignore extra fields from env
+    )
 
 @lru_cache()
 def get_config() -> AdapterConfig:

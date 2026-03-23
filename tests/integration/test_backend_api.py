@@ -1,25 +1,22 @@
 import pytest
-import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from starlette.testclient import TestClient
 import sys
 sys.path.insert(0, '/Users/yuanbaishu/pythonProject/memory-module/service')
 from mnemosyne.adapter.main import app
 
-@pytest_asyncio.fixture
-async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        yield ac
+@pytest.fixture
+def client():
+    with TestClient(app) as c:
+        yield c
 
-@pytest.mark.asyncio
-async def test_list_backends(client):
-    response = await client.get("/api/v1/backends/")
+def test_list_backends(client):
+    response = client.get("/api/v1/backends/")
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
 
-@pytest.mark.asyncio
-async def test_connect_backend(client):
-    response = await client.post("/api/v1/backends/connect", json={
+def test_connect_backend(client):
+    response = client.post("/api/v1/backends/connect", json={
         "provider": "milvus",
         "host": "localhost",
         "port": 19530,

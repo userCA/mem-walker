@@ -8,8 +8,11 @@
 - [ ] Phase 3: 性能优化与回归检测
 
 ### 最近进度
+- 2026-03-23: 重构后端架构 - 移除旧 FastAPI 服务，改用 mnemosyne-adapter
+  - service/mnemosyne/adapter/ - 新的适配器层
+  - 移除 server/app/ 旧后端代码
+  - 集成测试更新以适配新架构
 - 2026-03-22: 完成记忆对话功能 + DeepSeek AI 集成
-  - server/app/api/chat.py - 对话 API 端点
   - web/src/components/chat/ - 聊天 UI 组件
   - web/src/hooks/useChat.ts - 聊天状态管理
   - 集成 DeepSeek API 实现 AI 对话
@@ -109,12 +112,6 @@ cat evaluation/reports/latest.json 2>/dev/null || echo "No report yet"
 
 ```
 memory-module/
-├── server/                  # FastAPI 后端
-│   └── app/
-│       ├── api/            # API 端点 (chat, memory, backend)
-│       ├── models.py       # Pydantic 模型
-│       ├── database.py     # 内存数据库
-│       └── config.py       # 配置管理
 ├── web/                     # React 前端
 │   └── src/
 │       ├── api/            # API 客户端
@@ -123,12 +120,15 @@ memory-module/
 │       ├── stores/         # Zustand 状态管理
 │       └── types/          # TypeScript 类型
 ├── service/
-│   ├── mnemosyne/           # 核心代码
-│   │   ├── memory/          # 记忆系统
-│   │   ├── vector_stores/   # 向量存储
-│   │   ├── embeddings/      # 嵌入模型
-│   │   └── reranker/        # 重排序
-│   └── tests/               # 测试
+│   └── mnemosyne/           # 核心代码
+│       ├── adapter/         # 适配器层 (API 路由)
+│       ├── memory/          # 记忆系统
+│       ├── vector_stores/   # 向量存储
+│       ├── embeddings/      # 嵌入模型
+│       └── reranker/        # 重排序
+├── tests/
+│   ├── integration/         # 集成测试
+│   └── unit/                # 单元测试
 ├── evaluation/              # 评估工作流
 │   ├── validators/          # 验证器
 │   ├── hooks/               # Git hooks
@@ -144,13 +144,13 @@ memory-module/
 - [x] 完成 evaluation validators 实现
 - [x] 配置 pre-commit hook (evaluation/install_hook.py)
 - [x] 测试完整门禁流程
+- [x] 后端架构重构：移除旧 FastAPI 服务，使用 mnemosyne-adapter
 
 ### 进行中
 - [ ] 建立初始性能基线（在有 OpenAI API 环境下运行）
 - [ ] 安装 pre-commit hook: `python evaluation/install_hook.py`
 
 ### 待完成
-- [ ] 后端替换：使用 mnemosyne 系统作为后端
 - [ ] GitHub Actions CI/CD 集成
 - [ ] 性能基线数据采集
 - [ ] 评估报告自动化生成

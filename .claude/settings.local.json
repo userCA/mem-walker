@@ -40,7 +40,12 @@
       "Bash(/Users/yuanbaishu/.venv-milvus/bin/python -m pytest ../tests/integration/ -v --tb=short)",
       "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module log --oneline -20)",
       "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module add -A)",
-      "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module commit -m \"feat(adapter): complete mnemosyne-adapter implementation\n\n- All 15 tasks completed\n- 8 unit tests passing\n- API routes verified\n- Ready for deployment\")"
+      "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module commit -m \"feat(adapter): complete mnemosyne-adapter implementation\n\n- All 15 tasks completed\n- 8 unit tests passing\n- API routes verified\n- Ready for deployment\")",
+      "Bash(/Users/yuanbaishu/.venv-milvus/bin/python:*)",
+      "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python3 -m pytest:*)",
+      "Bash(PYTHONPATH=/Users/yuanbaishu/pythonProject/memory-module/service /Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python3 -m pytest:*)",
+      "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module diff --stat)",
+      "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module log --oneline -5)"
     ],
     "deny": [],
     "ask": []

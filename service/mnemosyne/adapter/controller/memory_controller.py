@@ -6,9 +6,15 @@ from ..service.memory_service import MemoryService
 
 router = APIRouter(prefix="/memories", tags=["memories"])
 
-async def get_memory_service() -> MemoryService:
-    from fastapi import Request
-    return Request.state.memory_service
+# Global service reference - populated by main.py lifespan
+_memory_service_ref: MemoryService = None
+
+def set_memory_service_ref(service: MemoryService):
+    global _memory_service_ref
+    _memory_service_ref = service
+
+def get_memory_service() -> MemoryService:
+    return _memory_service_ref
 
 @router.get("/", response_model=ApiResponse)
 async def list_memories(

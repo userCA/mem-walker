@@ -14,7 +14,9 @@ class SessionStore:
         """Lazy initialization - create table if not exists."""
         if self._initialized:
             return
-        async with aiosqlite.connect(self.db_path) as db:
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
+            # Set busy timeout to handle concurrent access
+            await db.execute("PRAGMA busy_timeout = 30000")
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS chat_sessions (
                     id TEXT PRIMARY KEY,
@@ -34,7 +36,7 @@ class SessionStore:
         await self._ensure_init()
         session_id = str(uuid.uuid4())
         now = datetime.now()
-        async with aiosqlite.connect(self.db_path) as db:
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
             await db.execute("""
                 INSERT INTO chat_sessions (id, title, is_pinned, is_expanded, memory_count, created_at, updated_at, user_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -53,7 +55,7 @@ class SessionStore:
 
     async def get_session(self, session_id: str) -> Optional[dict]:
         await self._ensure_init()
-        async with aiosqlite.connect(self.db_path) as db:
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
             async with db.execute(
                 "SELECT * FROM chat_sessions WHERE id = ?", (session_id,)
             ) as cursor:
@@ -64,7 +66,7 @@ class SessionStore:
 
     async def list_sessions(self, user_id: str) -> list[dict]:
         await self._ensure_init()
-        async with aiosqlite.connect(self.db_path) as db:
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
             async with db.execute(
                 "SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC",
                 (user_id,)
@@ -77,7 +79,7 @@ class SessionStore:
         updates["updated_at"] = datetime.now()
         set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
         values = list(updates.values()) + [session_id]
-        async with aiosqlite.connect(self.db_path) as db:
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
             await db.execute(
                 f"UPDATE chat_sessions SET {set_clause} WHERE id = ?",
                 values
@@ -87,14 +89,14 @@ class SessionStore:
 
     async def delete_session(self, session_id: str) -> bool:
         await self._ensure_init()
-        async with aiosqlite.connect(self.db_path) as db:
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
             await db.execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
             await db.commit()
         return True
 
     async def increment_memory_count(self, session_id: str) -> None:
         await self._ensure_init()
-        async with aiosqlite.connect(self.db_path) as db:
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
             await db.execute("""
                 UPDATE chat_sessions
                 SET memory_count = memory_count + 1, updated_at = ?
