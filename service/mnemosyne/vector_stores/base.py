@@ -141,8 +141,28 @@ class VectorStoreBase(ABC):
     def collection_info(self) -> Dict[str, Any]:
         """
         Get information about the collection.
-        
+
         Returns:
             Collection metadata and statistics
+        """
+        pass
+
+    @abstractmethod
+    def bm25_search(
+        self,
+        query: str,
+        limit: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search using BM25 keyword matching (Milvus 2.4+ sparse vector).
+
+        Args:
+            query: Search query string
+            limit: Maximum number of results
+            filters: Optional metadata filters (user_id required for multi-tenant)
+
+        Returns:
+            List of search results with scores and payloads
         """
         pass
