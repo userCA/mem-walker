@@ -53,16 +53,30 @@ class MilvusVectorStore(VectorStoreBase):
     def _init_collection(self) -> None:
         """Initialize or load collection."""
         collection_name = self.config.collection_name
-        
+
         if utility.has_collection(collection_name):
             logger.info(f"Loading existing collection: {collection_name}")
             self.collection = Collection(collection_name)
-            # Create any missing indexes BEFORE loading the collection
-            self._ensure_scalar_indexes()
-            # Ensure BM25 sparse vector index exists
-            self._ensure_bm25_index()
-            # Now load the collection
-            self.collection.load()
+
+            # Check if rebuild is needed (missing partition key)
+            if self._needs_rebuild():
+                logger.warning(
+                    f"Collection {collection_name} lacks user_id partition key, "
+                    "rebuilding collection to enable partition-based routing..."
+                )
+                utility.drop_collection(collection_name)
+                self.create_collection(
+                    name=collection_name,
+                    vector_size=self.config.vector_size,
+                    distance_metric=self.config.distance_metric
+                )
+            else:
+                # Create any missing indexes BEFORE loading the collection
+                self._ensure_scalar_indexes()
+                # Ensure BM25 sparse vector index exists
+                self._ensure_bm25_index()
+                # Now load the collection
+                self.collection.load()
         else:
             logger.info(f"Creating new collection: {collection_name}")
             self.create_collection(
