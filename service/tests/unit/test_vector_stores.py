@@ -1,6 +1,8 @@
 import pytest
 import inspect
+from unittest.mock import MagicMock, patch
 from mnemosyne.vector_stores.base import VectorStoreBase
+from mnemosyne.vector_stores.milvus import MilvusVectorStore
 
 def test_bm25_search_method_exists_and_signature():
     """VectorStoreBase should have bm25_search method with correct signature"""
@@ -45,3 +47,21 @@ def test_bm25_search_raises_not_implemented():
     store = ConcreteStore()
     with pytest.raises(NotImplementedError):
         store.bm25_search(query="test")
+
+def test_milvus_bm25_search():
+    """MilvusVectorStore should implement bm25_search"""
+    mock_collection = MagicMock()
+    mock_collection.num_entities = 0
+    with patch('pymilvus.connections.connect'):
+        with patch('pymilvus.utility.has_collection', return_value=False):
+            with patch.object(MilvusVectorStore, '_init_collection'):
+                store = MilvusVectorStore()
+                # Manually set the collection mock after initialization
+                store.collection = mock_collection
+                # Should have bm25_search method
+                assert hasattr(store, 'bm25_search')
+                assert callable(store.bm25_search)
+                # Calling bm25_search should NOT raise NotImplementedError
+                # (it should be implemented in MilvusVectorStore)
+                result = store.bm25_search(query="test query", limit=5)
+                assert isinstance(result, list)

@@ -58,6 +58,8 @@ class MilvusVectorStore(VectorStoreBase):
             logger.info(f"Loading existing collection: {collection_name}")
             self.collection = Collection(collection_name)
             self.collection.load()
+            # Ensure scalar indexes exist for existing collections
+            self._ensure_scalar_indexes()
         else:
             logger.info(f"Creating new collection: {collection_name}")
             self.create_collection(
@@ -100,9 +102,65 @@ class MilvusVectorStore(VectorStoreBase):
             field_name="embedding",
             index_params=index_params
         )
-        
+
+        # Create scalar indexes for filtering
+        self._create_scalar_indexes()
+
         logger.info(f"Created collection: {name} with vector size: {vector_size}")
-    
+
+    def _create_scalar_indexes(self) -> None:
+        """Create scalar indexes for filterable fields."""
+        if self.collection is None:
+            return
+
+        scalar_config = self.config.scalar_index_config
+        if not scalar_config:
+            return
+
+        for field_name, index_params in scalar_config.items():
+            try:
+                # Check if index already exists
+                indexes = self.collection.indexes
+                field_has_index = any(
+                    idx.field_name == field_name for idx in indexes
+                )
+
+                if not field_has_index:
+                    self.collection.create_index(
+                        field_name=field_name,
+                        index_params=index_params
+                    )
+                    logger.info(f"Created scalar index on field: {field_name}")
+                else:
+                    logger.debug(f"Scalar index already exists on field: {field_name}")
+
+            except Exception as e:
+                logger.warning(f"Failed to create scalar index on {field_name}: {e}")
+
+    def _ensure_scalar_indexes(self) -> None:
+        """Ensure scalar indexes exist (for existing collections)."""
+        if self.collection is None:
+            return
+
+        try:
+            # Get all existing indexes
+            existing_indexes = {idx.field_name for idx in self.collection.indexes}
+
+            scalar_config = self.config.scalar_index_config
+            if not scalar_config:
+                return
+
+            for field_name, index_params in scalar_config.items():
+                if field_name not in existing_indexes:
+                    self.collection.create_index(
+                        field_name=field_name,
+                        index_params=index_params
+                    )
+                    logger.info(f"Created missing scalar index on field: {field_name}")
+
+        except Exception as e:
+            logger.warning(f"Failed to ensure scalar indexes: {e}")
+
     def insert(
         self,
         vectors: List[List[float]],
@@ -292,9 +350,96 @@ class MilvusVectorStore(VectorStoreBase):
         """Get collection information."""
         if self.collection is None:
             return {}
-        
+
         return {
             "name": self.collection.name,
             "num_entities": self.collection.num_entities,
             "schema": str(self.collection.schema)
         }
+
+    def bm25_search(
+        self,
+        query: str,
+        limit: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search using BM25 keyword matching via Milvus sparse vector.
+
+        Args:
+            query: Search query string
+            limit: Maximum number of results
+            filters: Optional metadata filters (user_id required)
+
+        Returns:
+            List of search results with scores and payloads
+        """
+        if self.collection is None:
+            raise VectorStoreError("Collection not initialized")
+
+        try:
+            self.collection.load()
+
+            # Build filter expression
+            expr = None
+            if filters and "user_id" in filters:
+                expr = f'user_id == "{filters["user_id"]}"'
+
+            # Use Milvus sparse vector BM25 search
+            sparse_vector = self._text_to_sparse_vector(query)
+
+            search_params = {
+                "metric_type": "IP",  # Inner product for sparse
+                "params": {"nprobe": 10}
+            }
+
+            results = self.collection.search(
+                data=[sparse_vector],
+                anns_field="bm25_embedding",
+                param=search_params,
+                limit=limit,
+                expr=expr,
+                output_fields=["id", "user_id", "content", "metadata", "created_at"]
+            )
+
+            # Format results
+            formatted_results = []
+            for hit in results[0]:
+                formatted_results.append({
+                    "id": hit.entity.get("id"),
+                    "score": float(hit.distance),
+                    "user_id": hit.entity.get("user_id"),
+                    "content": hit.entity.get("content"),
+                    "metadata": hit.entity.get("metadata"),
+                    "created_at": hit.entity.get("created_at")
+                })
+
+            logger.debug(f"BM25 found {len(formatted_results)} results")
+            return formatted_results
+
+        except Exception as e:
+            logger.warning(f"BM25 search failed: {e}, falling back to empty results")
+            return []
+
+    def _text_to_sparse_vector(self, text: str) -> List[float]:
+        """
+        Convert text to sparse vector using TF-IDF-like approach.
+        Returns list of (index, value) pairs for non-zero terms.
+        """
+        import math
+        terms = text.lower().split()
+        term_freq = {}
+        for term in terms:
+            term_freq[term] = term_freq.get(term, 0) + 1
+
+        # Simple TF-IDF-like normalization
+        max_freq = max(term_freq.values()) if term_freq else 1
+        sparse = {}
+        for term, freq in term_freq.items():
+            # Use hash to map term to index (simplified)
+            term_hash = hash(term) % 10000
+            tf = freq / max_freq
+            sparse[term_hash] = tf
+
+        # Convert to Milvus sparse vector format [(index, value), ...]
+        return [(idx, val) for idx, val in sparse.items()]
