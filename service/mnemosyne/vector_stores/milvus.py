@@ -1,7 +1,7 @@
 """Milvus vector store implementation."""
 
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pymilvus import Collection, CollectionSchema, DataType, FieldSchema, connections, utility
 
@@ -363,9 +363,10 @@ class MilvusVectorStore(VectorStoreBase):
 
     def bm25_search(
         self,
-        query: str,
+        query: str = None,
         limit: int = 10,
-        filters: Optional[Dict[str, Any]] = None
+        filters: Optional[Dict[str, Any]] = None,
+        query_vector: Optional[List[Tuple[int, float]]] = None
     ) -> List[Dict[str, Any]]:
         """
         Search using BM25 keyword matching via Milvus sparse vector.
@@ -374,6 +375,7 @@ class MilvusVectorStore(VectorStoreBase):
             query: Search query string
             limit: Maximum number of results
             filters: Optional metadata filters (user_id required)
+            query_vector: Optional precomputed sparse vector (index, score) tuples
 
         Returns:
             List of search results with scores and payloads
@@ -389,8 +391,13 @@ class MilvusVectorStore(VectorStoreBase):
             if filters and "user_id" in filters:
                 expr = f'user_id == "{filters["user_id"]}"'
 
-            # Use Milvus sparse vector BM25 search
-            sparse_vector = self._text_to_sparse_vector(query)
+            # Determine sparse vector source
+            if query_vector is None and query is not None:
+                sparse_vector = self._text_to_sparse_vector(query)
+            elif query_vector is not None:
+                sparse_vector = query_vector
+            else:
+                raise ValueError("Either query or query_vector must be provided")
 
             search_params = {
                 "metric_type": "IP",  # Inner product for sparse

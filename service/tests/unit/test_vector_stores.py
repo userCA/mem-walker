@@ -98,3 +98,28 @@ def test_milvus_insert_handles_bm25_vectors():
                 call_args = mock_collection.insert.call_args[0][0]
                 assert "bm25_embedding" in call_args[0]
                 assert call_args[0]["bm25_embedding"] == bm25_vec
+
+def test_milvus_bm25_search_accepts_query_vector():
+    """MilvusVectorStore.bm25_search should accept precomputed query_vector."""
+    from unittest.mock import MagicMock, patch
+
+    mock_collection = MagicMock()
+    mock_results = MagicMock()
+    mock_results[0] = []
+    mock_collection.search.return_value = mock_results
+
+    with patch('pymilvus.connections.connect'):
+        with patch('pymilvus.utility.has_collection', return_value=False):
+            with patch.object(MilvusVectorStore, '_init_collection'):
+                store = MilvusVectorStore()
+                store.collection = mock_collection
+                store.config = MagicMock()
+
+                # Call with query_vector directly
+                query_vec = [(0, 1.5), (100, 0.8)]
+                result = store.bm25_search(query_vector=query_vec, limit=10)
+
+                # Verify search was called with the query_vector
+                mock_collection.search.assert_called_once()
+                call_kwargs = mock_collection.search.call_args
+                assert call_kwargs.kwargs.get('data')[0] == query_vec

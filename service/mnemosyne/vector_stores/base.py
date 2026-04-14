@@ -1,7 +1,7 @@
 """Base abstract class for vector stores."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 class VectorStoreBase(ABC):
@@ -151,9 +151,10 @@ class VectorStoreBase(ABC):
 
     def bm25_search(
         self,
-        query: str,
+        query: str = None,
         limit: int = 10,
-        filters: Optional[Dict[str, Any]] = None
+        filters: Optional[Dict[str, Any]] = None,
+        query_vector: Optional[List[Tuple[int, float]]] = None
     ) -> List[Dict[str, Any]]:
         """
         Search using BM25 keyword matching (Milvus 2.4+ sparse vector).
@@ -165,6 +166,7 @@ class VectorStoreBase(ABC):
             query: Search query string
             limit: Maximum number of results
             filters: Optional metadata filters (user_id required for multi-tenant)
+            query_vector: Optional precomputed sparse vector (index, score) tuples
 
         Returns:
             List of search results with scores and payloads
