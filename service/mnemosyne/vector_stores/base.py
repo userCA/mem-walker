@@ -147,7 +147,6 @@ class VectorStoreBase(ABC):
         """
         pass
 
-    @abstractmethod
     def bm25_search(
         self,
         query: str,
@@ -157,6 +156,9 @@ class VectorStoreBase(ABC):
         """
         Search using BM25 keyword matching (Milvus 2.4+ sparse vector).
 
+        Default implementation raises NotImplementedError.
+        Override in subclass to enable BM25 search.
+
         Args:
             query: Search query string
             limit: Maximum number of results
@@ -165,4 +167,4 @@ class VectorStoreBase(ABC):
         Returns:
             List of search results with scores and payloads
         """
-        pass
+        raise NotImplementedError("BM25 search not supported by this vector store")
