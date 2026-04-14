@@ -1,5 +1,6 @@
 """BM25 Calculator for true BM25 sparse vector computation."""
 
+import hashlib
 import math
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -41,6 +42,11 @@ class BM25Calculator:
         Returns:
             List of (term_index, bm25_score) tuples for non-zero terms
         """
+        if terms is None:
+            raise ValueError("terms cannot be None")
+        if not terms:
+            return []
+
         self.corpus_size += 1
         doc_len = len(terms)
         self.total_doc_len += doc_len
@@ -87,7 +93,7 @@ class BM25Calculator:
 
             if bm25_score > 0:
                 # Map term to index via hash (deterministic)
-                term_index = hash(term) % self.VOCAB_SIZE
+                term_index = int(hashlib.md5(term.encode('utf-8')).hexdigest(), 16) % self.VOCAB_SIZE
                 doc_vector.append((term_index, bm25_score))
 
         return doc_vector
@@ -102,6 +108,9 @@ class BM25Calculator:
         Returns:
             List of (term_index, bm25_score) tuples
         """
+        if query is None:
+            raise ValueError("query cannot be None")
+
         terms = query.lower().split()
         term_freqs: Dict[str, int] = {}
         for term in terms:
@@ -114,7 +123,7 @@ class BM25Calculator:
                 # For query, we use simplified BM25: IDF * tf
                 # (no length normalization for query)
                 bm25_score = idf * tf
-                term_index = hash(term) % self.VOCAB_SIZE
+                term_index = int(hashlib.md5(term.encode('utf-8')).hexdigest(), 16) % self.VOCAB_SIZE
                 query_vector.append((term_index, bm25_score))
 
         return query_vector
