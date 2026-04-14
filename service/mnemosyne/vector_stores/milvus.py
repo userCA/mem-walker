@@ -57,9 +57,12 @@ class MilvusVectorStore(VectorStoreBase):
         if utility.has_collection(collection_name):
             logger.info(f"Loading existing collection: {collection_name}")
             self.collection = Collection(collection_name)
-            self.collection.load()
-            # Ensure scalar indexes exist for existing collections
+            # Create any missing indexes BEFORE loading the collection
             self._ensure_scalar_indexes()
+            # Ensure BM25 sparse vector index exists
+            self._ensure_bm25_index()
+            # Now load the collection
+            self.collection.load()
         else:
             logger.info(f"Creating new collection: {collection_name}")
             self.create_collection(
@@ -104,6 +107,17 @@ class MilvusVectorStore(VectorStoreBase):
             index_params=index_params
         )
 
+        # Create sparse vector index for BM25
+        sparse_index_params = {
+            "metric_type": "IP",
+            "index_type": "SPARSE_INVERTED_INDEX",
+            "params": {"nprobe": 10}
+        }
+        self.collection.create_index(
+            field_name="bm25_embedding",
+            index_params=sparse_index_params
+        )
+
         # Create scalar indexes for filtering
         self._create_scalar_indexes()
 
@@ -146,12 +160,18 @@ class MilvusVectorStore(VectorStoreBase):
         try:
             # Get all existing indexes
             existing_indexes = {idx.field_name for idx in self.collection.indexes}
+            # Get schema fields
+            schema_fields = {field.name for field in self.collection.schema.fields}
 
             scalar_config = self.config.scalar_index_config
             if not scalar_config:
                 return
 
             for field_name, index_params in scalar_config.items():
+                # Skip if field doesn't exist in schema
+                if field_name not in schema_fields:
+                    logger.debug(f"Field {field_name} does not exist in collection schema, skipping index")
+                    continue
                 if field_name not in existing_indexes:
                     self.collection.create_index(
                         field_name=field_name,
@@ -161,6 +181,56 @@ class MilvusVectorStore(VectorStoreBase):
 
         except Exception as e:
             logger.warning(f"Failed to ensure scalar indexes: {e}")
+
+    def _ensure_bm25_index(self) -> None:
+        """Ensure BM25 sparse vector index exists (for existing collections)."""
+        if self.collection is None:
+            return
+
+        try:
+            # Check if bm25_embedding field exists in schema
+            schema_fields = {field.name for field in self.collection.schema.fields}
+            if "bm25_embedding" not in schema_fields:
+                logger.debug("bm25_embedding field does not exist in collection schema, skipping index creation")
+                return
+
+            existing_indexes = {idx.field_name for idx in self.collection.indexes}
+
+            if "bm25_embedding" not in existing_indexes:
+                sparse_index_params = {
+                    "metric_type": "IP",
+                    "index_type": "SPARSE_INVERTED_INDEX",
+                    "params": {"nprobe": 10}
+                }
+                self.collection.create_index(
+                    field_name="bm25_embedding",
+                    index_params=sparse_index_params
+                )
+                logger.info("Created missing BM25 sparse vector index")
+            else:
+                logger.debug("BM25 sparse vector index already exists")
+
+        except Exception as e:
+            logger.warning(f"Failed to ensure BM25 index: {e}")
+
+    def _needs_rebuild(self) -> bool:
+        """
+        Check if collection needs rebuild (missing partition key).
+
+        Returns True if the existing collection lacks the user_id partition key
+        and needs to be rebuilt.
+        """
+        if self.collection is None:
+            return False
+
+        try:
+            for field in self.collection.schema.fields:
+                if field.name == "user_id" and field.is_partition_key:
+                    return False  # Has partition key, no rebuild needed
+            return True  # Missing partition key
+        except Exception as e:
+            logger.warning(f"Failed to check partition key status: {e}")
+            return True  # Assume rebuild needed on error
 
     def insert(
         self,
