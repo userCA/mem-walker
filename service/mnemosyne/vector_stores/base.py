@@ -1,7 +1,7 @@
 """Base abstract class for vector stores."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class VectorStoreBase(ABC):
@@ -33,16 +33,18 @@ class VectorStoreBase(ABC):
         self,
         vectors: List[List[float]],
         payloads: Optional[List[Dict[str, Any]]] = None,
-        ids: Optional[List[str]] = None
+        ids: Optional[List[str]] = None,
+        bm25_vectors: Optional[List[List[Tuple[int, float]]]] = None
     ) -> List[str]:
         """
         Insert vectors into the collection.
-        
+
         Args:
             vectors: List of embedding vectors
             payloads: Optional metadata for each vector
             ids: Optional custom IDs for vectors
-            
+            bm25_vectors: Optional BM25 sparse vectors (List of (index, score) tuples)
+
         Returns:
             List of inserted vector IDs
         """

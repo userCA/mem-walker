@@ -48,6 +48,12 @@ def test_bm25_search_raises_not_implemented():
     with pytest.raises(NotImplementedError):
         store.bm25_search(query="test")
 
+def test_insert_accepts_bm25_vectors():
+    """VectorStoreBase.insert should accept bm25_vectors parameter."""
+    sig = inspect.signature(VectorStoreBase.insert)
+    params = list(sig.parameters.keys())
+    assert 'bm25_vectors' in params, "insert should accept bm25_vectors parameter"
+
 def test_milvus_bm25_search():
     """MilvusVectorStore should implement bm25_search"""
     mock_collection = MagicMock()
