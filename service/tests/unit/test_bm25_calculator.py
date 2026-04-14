@@ -40,3 +40,29 @@ def test_bm25_calculator_compute_query_vector():
 
     assert isinstance(query_vector, list)
     assert len(query_vector) > 0
+
+def test_bm25_calculator_persistence():
+    """BM25Calculator should save and load IDF statistics."""
+    import tempfile
+    import os
+
+    calc = BM25Calculator()
+    calc.add_document(["hello", "world"])
+    calc.add_document(["hello", "python"])
+
+    # Save to temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.json') as f:
+        temp_path = f.name
+
+    try:
+        calc.save(temp_path)
+
+        # Load into new calculator
+        calc2 = BM25Calculator()
+        calc2.load(temp_path)
+
+        assert calc2.corpus_size == calc.corpus_size
+        assert calc2.doc_freqs == calc.doc_freqs
+        assert calc2.idf == calc.idf
+    finally:
+        os.unlink(temp_path)

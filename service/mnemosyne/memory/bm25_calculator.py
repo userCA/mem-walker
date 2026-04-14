@@ -1,7 +1,9 @@
 """BM25 Calculator for true BM25 sparse vector computation."""
 
 import hashlib
+import json
 import math
+import os
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..utils import get_logger
@@ -139,3 +141,34 @@ class BM25Calculator:
             "avg_doc_len": self.avg_doc_len,
             "vocab_size": len(self.doc_freqs),
         }
+
+    def save(self, path: str) -> None:
+        """Save IDF statistics to disk."""
+        data = {
+            "corpus_size": self.corpus_size,
+            "avg_doc_len": self.avg_doc_len,
+            "total_doc_len": self.total_doc_len,
+            "doc_freqs": self.doc_freqs,
+            "idf": self.idf
+        }
+        if os.path.dirname(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
+            json.dump(data, f)
+        logger.info(f"Saved BM25 statistics to {path}")
+
+    def load(self, path: str) -> None:
+        """Load IDF statistics from disk."""
+        if not os.path.exists(path):
+            logger.warning(f"BM25 statistics file not found: {path}")
+            return
+
+        with open(path, 'r') as f:
+            data = json.load(f)
+
+        self.corpus_size = data.get("corpus_size", 0)
+        self.avg_doc_len = data.get("avg_doc_len", 0.0)
+        self.total_doc_len = data.get("total_doc_len", 0)
+        self.doc_freqs = data.get("doc_freqs", {})
+        self.idf = data.get("idf", {})
+        logger.info(f"Loaded BM25 statistics from {path}")
