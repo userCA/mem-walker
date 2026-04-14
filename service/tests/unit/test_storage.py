@@ -129,3 +129,39 @@ def test_memory_writer_computes_bm25_on_add():
         call_kwargs = mock_vector_store.insert.call_args
         # Check bm25_vectors was passed
         assert 'bm25_vectors' in call_kwargs.kwargs or len(call_kwargs.args) > 3
+
+
+def test_memory_reader_uses_bm25_calculator_for_query():
+    """_MemoryReader.search should use BM25Calculator to compute query vector."""
+    from unittest.mock import MagicMock, patch
+
+    mock_embedding = MagicMock()
+    mock_embedding.embed.return_value = [0.1] * 384
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.search.return_value = [{"id": "1", "content": "test", "score": 0.9, "user_id": "u1", "metadata": {}, "created_at": 123}]
+    mock_vector_store.bm25_search.return_value = []
+
+    mock_graph_store = MagicMock()
+    mock_llm = MagicMock()
+
+    with patch('mnemosyne.memory.storage.BM25Calculator') as MockCalc:
+        mock_bm25 = MagicMock()
+        mock_bm25.compute_query_vector.return_value = [(0, 1.5), (100, 0.8)]
+        MockCalc.return_value = mock_bm25
+
+        from mnemosyne.memory.storage import _MemoryReader
+        reader = _MemoryReader(
+            embedding=mock_embedding,
+            vector_store=mock_vector_store,
+            graph_store=mock_graph_store,
+            llm=mock_llm
+        )
+        reader.bm25_calculator = mock_bm25
+
+        results = reader.search("test query", user_id="u1", limit=10, use_graph=False)
+
+        # Verify bm25_search was called with precomputed vector
+        mock_vector_store.bm25_search.assert_called_once()
+        call_kwargs = mock_vector_store.bm25_search.call_args
+        assert call_kwargs.kwargs.get('query_vector') == [(0, 1.5), (100, 0.8)]

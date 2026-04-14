@@ -14,6 +14,7 @@ from ..graphs.base import GraphStoreBase
 from ..llms.base import LLMBase
 from ..utils import get_logger
 from ..vector_stores.base import VectorStoreBase
+from .bm25_calculator import BM25Calculator
 
 logger = get_logger(__name__)
 
@@ -88,6 +89,7 @@ class _MemoryWriter:
         self.graph_store = graph_store
         self.llm = llm
         self.conflict_strategy = conflict_strategy
+        self.bm25_calculator = BM25Calculator()
     
     def add(
         self,
@@ -237,13 +239,18 @@ class _MemoryWriter:
                 "metadata": metadata,
                 "original_message": messages
             }
-            
+
+            # Compute BM25 vector
+            content_terms = content.lower().split()
+            bm25_vector = self.bm25_calculator.add_document(content_terms)
+
             # Insert into vector store
             logger.debug(f"Inserting into vector store: {memory_id}")
             self.vector_store.insert(
                 vectors=[embedding_vector],
                 payloads=[payload],
-                ids=[memory_id]
+                ids=[memory_id],
+                bm25_vectors=[bm25_vector]
             )
             
             # Extract entities and build graph if infer enabled
@@ -343,7 +350,7 @@ class _MemoryWriter:
 
 class _MemoryReader:
     """Internal reader component - handles memory retrieval."""
-    
+
     def __init__(
         self,
         embedding: EmbeddingBase,
@@ -355,6 +362,7 @@ class _MemoryReader:
         self.vector_store = vector_store
         self.graph_store = graph_store
         self.llm = llm
+        self.bm25_calculator = BM25Calculator()
     
     def search(
         self,
@@ -398,9 +406,11 @@ class _MemoryReader:
                 future_bm25 = None
                 if hasattr(self.vector_store, 'bm25_search'):
                     logger.debug("Running BM25 search (async)")
+                    # Compute query vector using stored IDF
+                    query_bm25_vector = self.bm25_calculator.compute_query_vector(query)
                     future_bm25 = executor.submit(
                         self.vector_store.bm25_search,
-                        query=query,
+                        query_vector=query_bm25_vector,  # Pass precomputed vector
                         limit=limit * 2,
                         filters={"user_id": user_id}
                     )
