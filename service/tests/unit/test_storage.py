@@ -55,3 +55,39 @@ def test_rff_empty_list_in_results():
     fused = _reciprocal_rank_fusion([[{"id": "1"}], []], k=60)
     assert len(fused) == 1
     assert fused[0]["id"] == "1"
+
+
+def test_memory_reader_search_with_bm25():
+    """_MemoryReader.search should call vector_search and bm25_search in parallel"""
+    from mnemosyne.memory.storage import _MemoryReader
+    from unittest.mock import MagicMock
+
+    mock_embedding = MagicMock()
+    mock_embedding.embed.return_value = [0.1] * 384
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.search.return_value = [
+        {"id": "1", "content": "test", "score": 0.9, "user_id": "u1", "metadata": {}, "created_at": 123}
+    ]
+
+    mock_graph_store = MagicMock()
+    mock_llm = MagicMock()
+
+    reader = _MemoryReader(
+        embedding=mock_embedding,
+        vector_store=mock_vector_store,
+        graph_store=mock_graph_store,
+        llm=mock_llm
+    )
+
+    # Patch bm25_search on vector_store
+    mock_vector_store.bm25_search = MagicMock(return_value=[
+        {"id": "2", "content": "bm25 test", "score": 0.85, "user_id": "u1", "metadata": {}, "created_at": 124}
+    ])
+
+    results = reader.search("test query", user_id="u1", limit=10, use_graph=False)
+
+    # Verify both search methods were called
+    mock_vector_store.search.assert_called_once()
+    mock_vector_store.bm25_search.assert_called_once()
+    assert len(results) == 2  # Should have fused results

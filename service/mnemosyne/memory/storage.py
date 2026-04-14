@@ -363,47 +363,67 @@ class _MemoryReader:
         use_graph: bool = True
     ) -> List[Dict[str, Any]]:
         """
-        Search memories using hybrid approach.
-        
+        Search memories using parallel hybrid approach (vector + BM25 + optional graph).
+
         Args:
             query: Search query
             user_id: User ID
             limit: Maximum results
             use_graph: Whether to use graph expansion
-            
+
         Returns:
             List of memories with scores
         """
         try:
-            # Parallel Execution: Query Embedding & Entity Extraction
             import concurrent.futures
-            
+
             query_vector = None
             expanded_entities = []
-            
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            vector_results = []
+            bm25_results = []
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 # Task 1: Generate Embedding
                 logger.debug("Generating query embedding (async)")
                 future_embed = executor.submit(self.embedding.embed, query)
-                
+
                 # Task 2: Entity Extraction (if enabled)
                 future_entities = None
                 if use_graph:
                     logger.debug("Extracting entities from query (async)")
                     future_entities = executor.submit(self.llm.extract_entities, query)
-                
+
+                # Task 3: BM25 Search (if available)
+                future_bm25 = None
+                if hasattr(self.vector_store, 'bm25_search'):
+                    logger.debug("Running BM25 search (async)")
+                    future_bm25 = executor.submit(
+                        self.vector_store.bm25_search,
+                        query=query,
+                        limit=limit * 2,
+                        filters={"user_id": user_id}
+                    )
+
                 # Wait for embedding (fast)
                 query_vector = future_embed.result()
-                
+
                 # Vector search immediately when embedding is ready
                 logger.debug(f"Searching vector store for user {user_id}")
-                search_limit = int(limit * 2.0) # Increase fetch limit
+                search_limit = int(limit * 2.0)
                 vector_results = self.vector_store.search(
                     query_vector=query_vector,
-                    limit=search_limit, 
+                    limit=search_limit,
                     filters={"user_id": user_id}
                 )
-                
+
+                # Wait for BM25 results
+                if future_bm25:
+                    try:
+                        bm25_results = future_bm25.result()
+                    except Exception as e:
+                        logger.warning(f"BM25 search failed, continuing without it: {e}")
+                        bm25_results = []
+
                 # Wait for entities (slow)
                 if future_entities:
                     try:
@@ -419,45 +439,51 @@ class _MemoryReader:
                                 )
                     except Exception as e:
                         logger.warning(f"Graph expansion failed, continuing with vector results: {e}")
-            
+
+            # RRF Fusion: combine vector and BM25 results
+            if bm25_results:
+                logger.debug(f"Fusing {len(vector_results)} vector + {len(bm25_results)} BM25 results")
+                fused_results = _reciprocal_rank_fusion([vector_results, bm25_results], k=60)
+            else:
+                fused_results = vector_results
+
             # Combine and score results
             results = []
             seen_content = set()
-            
-            for result in vector_results:
+
+            for result in fused_results:
                 content = result.get("content", "")
-                
+
                 # Simple deduplication by content hash
-                # In a real system, might use more sophisticated semantic deduplication
                 content_hash = hash(content.strip())
                 if content_hash in seen_content:
                     continue
                 seen_content.add(content_hash)
-                
-                # Base score from vector similarity
-                score = result.get("score", 0.0)
-                
+
+                # Base score from vector similarity or fused score
+                score = result.get("score", result.get("fused_score", 0.0))
+
                 # Boost score if content mentions expanded entities
                 if expanded_entities:
                     for entity in expanded_entities:
                         if entity.lower() in content.lower():
-                            score += 0.1  # Small boost for graph relevance
-                
+                            score += 0.1
+
                 results.append({
                     "id": result.get("id"),
                     "content": content,
-                    "score": min(score, 1.0),  # Cap at 1.0
+                    "score": min(score, 1.0),
                     "metadata": result.get("metadata"),
                     "user_id": result.get("user_id"),
                     "created_at": result.get("created_at")
                 })
-            
+
             # Sort by combined score
             results.sort(key=lambda x: x["score"], reverse=True)
-            
+
             logger.info(f"Found {len(results[:limit])} memories for query")
             return results[:limit]
-            
+
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise MemoryError(f"Search failed: {e}")
