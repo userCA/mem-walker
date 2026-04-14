@@ -1,5 +1,5 @@
 import pytest
-from mnemosyne.memory.storage import _reciprocal_rank_fusion
+from mnemosyne.memory.storage import _reciprocal_rank_fusion, _MemoryWriter
 
 def test_rff_fusion_two_results():
     """RRF should fuse two result sets correctly"""
@@ -91,3 +91,41 @@ def test_memory_reader_search_with_bm25():
     mock_vector_store.search.assert_called_once()
     mock_vector_store.bm25_search.assert_called_once()
     assert len(results) == 2  # Should have fused results
+
+
+def test_memory_writer_computes_bm25_on_add():
+    """_MemoryWriter.add should compute and store BM25 vectors."""
+    from unittest.mock import MagicMock, patch
+
+    mock_embedding = MagicMock()
+    mock_embedding.embed.return_value = [0.1] * 384
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.insert.return_value = ["memory-1"]
+    mock_vector_store.list.return_value = []  # Prevent hash deduplication from skipping insert
+    mock_vector_store.search.return_value = []  # Prevent semantic deduplication from causing issues
+
+    mock_graph_store = MagicMock()
+    mock_llm = MagicMock()
+    mock_llm.extract_facts.return_value = None  # Disable LLM calls
+
+    writer = _MemoryWriter(
+        embedding=mock_embedding,
+        vector_store=mock_vector_store,
+        graph_store=mock_graph_store,
+        llm=mock_llm
+    )
+
+    # Patch BM25Calculator to avoid actual IDF computation
+    with patch('mnemosyne.memory.storage.BM25Calculator') as MockCalc:
+        mock_calc = MagicMock()
+        mock_calc.add_document.return_value = [(0, 1.5), (100, 0.8)]
+        MockCalc.return_value = mock_calc
+
+        writer.add("test memory content", user_id="u1", infer=False)
+
+        # Verify insert was called with bm25_vectors
+        mock_vector_store.insert.assert_called_once()
+        call_kwargs = mock_vector_store.insert.call_args
+        # Check bm25_vectors was passed
+        assert 'bm25_vectors' in call_kwargs.kwargs or len(call_kwargs.args) > 3
