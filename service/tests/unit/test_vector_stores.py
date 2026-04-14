@@ -71,3 +71,30 @@ def test_milvus_bm25_search():
                 # (it should be implemented in MilvusVectorStore)
                 result = store.bm25_search(query="test query", limit=5)
                 assert isinstance(result, list)
+
+def test_milvus_insert_handles_bm25_vectors():
+    """MilvusVectorStore.insert should accept and store bm25_vectors."""
+    from unittest.mock import MagicMock, patch
+
+    mock_collection = MagicMock()
+    with patch('pymilvus.connections.connect'):
+        with patch('pymilvus.utility.has_collection', return_value=False):
+            with patch.object(MilvusVectorStore, '_init_collection'):
+                store = MilvusVectorStore()
+                store.collection = mock_collection
+                store.config = MagicMock()
+
+                # Call insert with bm25_vectors
+                bm25_vec = [(0, 1.5), (100, 0.8)]  # (index, score) tuples
+                result = store.insert(
+                    vectors=[[0.1] * 384],
+                    payloads=[{"content": "test"}],
+                    bm25_vectors=[bm25_vec]
+                )
+
+                # Verify insert was called
+                mock_collection.insert.assert_called_once()
+                # Check that data includes bm25_embedding
+                call_args = mock_collection.insert.call_args[0][0]
+                assert "bm25_embedding" in call_args[0]
+                assert call_args[0]["bm25_embedding"] == bm25_vec

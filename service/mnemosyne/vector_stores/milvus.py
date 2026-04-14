@@ -166,33 +166,36 @@ class MilvusVectorStore(VectorStoreBase):
         self,
         vectors: List[List[float]],
         payloads: Optional[List[Dict[str, Any]]] = None,
-        ids: Optional[List[str]] = None
+        ids: Optional[List[str]] = None,
+        bm25_vectors: Optional[List[List[tuple]]] = None
     ) -> List[str]:
         """Insert vectors into collection."""
         if self.collection is None:
             raise VectorStoreError("Collection not initialized")
-        
+
         # Generate IDs if not provided
         if ids is None:
             ids = [str(uuid.uuid4()) for _ in range(len(vectors))]
-        
+
         # Prepare data
         import time
         timestamp = int(time.time())
-        
+
         data = []
         for i, (vec_id, vector) in enumerate(zip(ids, vectors)):
             payload = payloads[i] if payloads else {}
-            
+            bm25_vec = bm25_vectors[i] if bm25_vectors else []
+
             data.append({
                 "id": vec_id,
                 "embedding": vector,
                 "user_id": payload.get("user_id", "default"),
                 "content": payload.get("content", ""),
                 "metadata": payload.get("metadata", {}),
-                "created_at": timestamp
+                "created_at": timestamp,
+                "bm25_embedding": bm25_vec
             })
-        
+
         try:
             self.collection.insert(data)
             # self.collection.flush()  # Removed to improve performance
