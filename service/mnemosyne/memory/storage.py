@@ -3,6 +3,7 @@
 Implements Writer/Reader/Lifecycle components following facade pattern.
 """
 
+import hashlib
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -454,8 +455,8 @@ class _MemoryReader:
             for result in fused_results:
                 content = result.get("content", "")
 
-                # Simple deduplication by content hash
-                content_hash = hash(content.strip())
+                # Simple deduplication by content hash (using MD5 for determinism)
+                content_hash = hashlib.md5(content.strip().encode('utf-8')).hexdigest()
                 if content_hash in seen_content:
                     continue
                 seen_content.add(content_hash)
