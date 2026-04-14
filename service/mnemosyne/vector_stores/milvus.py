@@ -80,6 +80,7 @@ class MilvusVectorStore(VectorStoreBase):
         fields = [
             FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=64),
             FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=vector_size),
+            FieldSchema(name="bm25_embedding", dtype=DataType.SPARSE_FLOAT_VECTOR),
             FieldSchema(name="user_id", dtype=DataType.VARCHAR, max_length=64),
             FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
             FieldSchema(name="metadata", dtype=DataType.JSON),
