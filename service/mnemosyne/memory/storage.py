@@ -17,20 +17,76 @@ from ..vector_stores.base import VectorStoreBase
 logger = get_logger(__name__)
 
 
+def _reciprocal_rank_fusion(
+    results_list: List[List[Dict[str, Any]]],
+    k: int = 60
+) -> List[Dict[str, Any]]:
+    """
+    Fuse multiple ranked result lists using Reciprocal Rank Fusion.
+
+    Args:
+        results_list: List of result lists, each sorted by score (descending)
+        k: RRF parameter (default 60, higher = more weight to lower ranks)
+
+    Returns:
+        Fused and re-ranked list of results
+    """
+    scores = {}
+    item_data = {}
+
+    for results in results_list:
+        for rank, item in enumerate(results):
+            item_id = item.get("id")
+            if not item_id:
+                continue
+
+            # Accumulate RRF score
+            scores[item_id] = scores.get(item_id, 0) + 1 / (k + rank + 1)
+
+            # Keep item data from first occurrence
+            if item_id not in item_data:
+                item_data[item_id] = item
+
+    # Sort by fused score
+    sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+
+    # Build result list preserving item data with fused score
+    fused = []
+    for item_id in sorted_ids:
+        item = item_data[item_id].copy()
+        item["fused_score"] = scores[item_id]
+        fused.append(item)
+
+    return fused
+
+
 class _MemoryWriter:
     """Internal writer component - handles memory creation."""
-    
+
+    # Semantic similarity thresholds for conflict detection
+    SEMANTIC_DUPLICATE_THRESHOLD = 0.92  # Above this = exact duplicate
+    SEMANTIC_SAFE_THRESHOLD = 0.70       # Below this = no conflict risk
+    SEMANTIC_GRAY_ZONE_MIN = 0.70        # Gray zone lower bound
+    SEMANTIC_GRAY_ZONE_MAX = 0.92        # Gray zone upper bound
+
+    # Conflict resolution strategies
+    STRATEGY_NEWER_WINS = "newer_wins"   # New memory overwrites/conflicts old
+    STRATEGY_KEEP_BOTH = "keep_both"     # Keep both, mark as conflict
+    STRATEGY_SKIP = "skip"               # Skip inserting if conflict
+
     def __init__(
         self,
         embedding: EmbeddingBase,
         vector_store: VectorStoreBase,
         graph_store: GraphStoreBase,
-        llm: LLMBase
+        llm: LLMBase,
+        conflict_strategy: str = STRATEGY_NEWER_WINS
     ):
         self.embedding = embedding
         self.vector_store = vector_store
         self.graph_store = graph_store
         self.llm = llm
+        self.conflict_strategy = conflict_strategy
     
     def add(
         self,
@@ -91,18 +147,22 @@ class _MemoryWriter:
             except Exception as e:
                 logger.warning(f"Semantic deduplication check failed: {e}")
 
+            # Store similar_memories for potential conflict detection
+            _similar_memories_for_conflict = similar_memories if similar_memories else []
+            _top_match_score = similar_memories[0].get("score", 0.0) if similar_memories else 0.0
+
             # --- Phase 2: Fact Extraction (Slow / Costly) ---
             # Extract facts if requested
             if infer:
                 logger.debug(f"Extracting facts for user {user_id}")
                 facts = self.llm.extract_facts(messages, user_id)
-                
+
                 if facts:
                     # Use first fact as content, or original message
                     content = facts[0].get("fact", messages) if facts else messages
-                    
+
                     # If content changed significantly, we might need to re-embed
-                    # But usually fact extraction just cleans up the text. 
+                    # But usually fact extraction just cleans up the text.
                     # For strict correctness, let's re-embed if content != messages
                     if content != messages:
                         embedding_vector = self.embedding.embed(content)
@@ -112,7 +172,58 @@ class _MemoryWriter:
                     content = messages
             else:
                 content = messages
-            
+
+            # --- Phase 2.5: Conflict Detection (LLM-based) ---
+            # Check for conflicts in the "gray zone" where semantic similarity is ambiguous
+            if (_top_match_score >= self.SEMANTIC_GRAY_ZONE_MIN and
+                _top_match_score <= self.SEMANTIC_GRAY_ZONE_MAX and
+                _similar_memories_for_conflict):
+                logger.debug(f"Gray zone detected (score: {_top_match_score:.4f}), running conflict detection")
+
+                # Get top candidates for conflict checking
+                candidates_for_conflict = _similar_memories_for_conflict[:5]
+                existing_contents = [m.get("content", "") for m in candidates_for_conflict]
+
+                # Use LLM to detect semantic conflicts
+                try:
+                    conflict_result = self.llm.detect_conflicts(content, existing_contents)
+
+                    if conflict_result and conflict_result.get("has_conflict"):
+                        conflicting_fact = conflict_result.get("conflicting_fact", "unknown")
+                        conflict_reason = conflict_result.get("reason", "semantic contradiction")
+
+                        logger.info(f"Conflict detected: '{content}' vs '{conflicting_fact}' - {conflict_reason}")
+
+                        # Apply conflict resolution strategy
+                        if self.conflict_strategy == self.STRATEGY_SKIP:
+                            # Skip: don't insert conflicting memory
+                            logger.info(f"Conflict strategy SKIP: not inserting conflicting memory for user {user_id}")
+                            return candidates_for_conflict[0]["id"]
+                        elif self.conflict_strategy == self.STRATEGY_KEEP_BOTH:
+                            # Keep both: insert with conflict metadata
+                            logger.info(f"Conflict strategy KEEP_BOTH: inserting with conflict metadata")
+                            if metadata is None:
+                                metadata = {}
+                            metadata["has_conflict"] = True
+                            metadata["conflict_with"] = conflicting_fact
+                            metadata["conflict_reason"] = conflict_reason
+                        elif self.conflict_strategy == self.STRATEGY_NEWER_WINS:
+                            # Newer wins: insert normally, let newer info take precedence
+                            # Add conflict metadata for transparency
+                            logger.info(f"Conflict strategy NEWER_WINS: inserting newer memory")
+                            if metadata is None:
+                                metadata = {}
+                            metadata["has_conflict"] = True
+                            metadata["conflict_with"] = conflicting_fact
+                            metadata["conflict_reason"] = conflict_reason
+                            metadata["conflict_resolved"] = "newer_wins"
+                        # Default: newer_wins
+                except NotImplementedError:
+                    # LLM doesn't support conflict detection, skip
+                    logger.debug("LLM does not support detect_conflicts, skipping")
+                except Exception as e:
+                    logger.warning(f"Conflict detection failed: {e}, continuing with insert")
+
             # --- Phase 3: Persistence ---
             # Prepare payload
             if metadata is None:
