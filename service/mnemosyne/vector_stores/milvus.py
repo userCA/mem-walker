@@ -427,7 +427,6 @@ class MilvusVectorStore(VectorStoreBase):
         Convert text to sparse vector using TF-IDF-like approach.
         Returns list of (index, value) pairs for non-zero terms.
         """
-        import math
         terms = text.lower().split()
         term_freq = {}
         for term in terms:
