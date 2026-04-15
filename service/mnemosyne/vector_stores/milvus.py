@@ -51,7 +51,13 @@ class MilvusVectorStore(VectorStoreBase):
             raise VectorStoreError(f"Failed to initialize Milvus: {e}")
     
     def _init_collection(self) -> None:
-        """Initialize or load collection."""
+        """
+        Initialize or load collection.
+
+        WARNING: If an existing collection lacks the user_id partition key,
+        this method will DROP and RECREATE the collection, destroying all data.
+        This is a destructive migration operation.
+        """
         collection_name = self.config.collection_name
 
         if utility.has_collection(collection_name):
