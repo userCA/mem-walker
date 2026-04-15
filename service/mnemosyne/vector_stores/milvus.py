@@ -288,7 +288,7 @@ class MilvusVectorStore(VectorStoreBase):
 
         try:
             self.collection.insert(data)
-            # self.collection.flush()  # Removed to improve performance
+            self.collection.flush()  # Required for data visibility in search
             logger.debug(f"Inserted {len(vectors)} vectors")
             return ids
         except Exception as e:
