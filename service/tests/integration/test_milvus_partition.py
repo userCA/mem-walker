@@ -1,4 +1,6 @@
 """Integration test for Milvus user_id partition key."""
+import uuid
+
 import pytest
 from mnemosyne.vector_stores.milvus import MilvusVectorStore
 from mnemosyne.vector_stores.configs import MilvusConfig
@@ -11,7 +13,7 @@ class TestMilvusUserIdPartition:
     def milvus_config(self):
         """Create test config with unique collection name."""
         config = MilvusConfig()
-        config.collection_name = f"test_partition_{id(self)}"
+        config.collection_name = f"test_partition_{uuid.uuid4().hex[:8]}"
         return config
 
     @pytest.fixture
@@ -22,7 +24,7 @@ class TestMilvusUserIdPartition:
         # Cleanup
         try:
             store.delete_collection()
-        except:
+        except Exception:
             pass
 
     def test_partition_key_enabled(self, store):
