@@ -16,14 +16,8 @@ export const ChatPanel: React.FC = () => {
   const handleCreateSession = async () => {
     try {
       const result = await createSession.mutateAsync({})
-      console.log('=== handleCreateSession ===')
-      console.log('Result:', result)
-      console.log('Result.data:', result?.data)
       if (result?.data) {
-        console.log('Setting currentSessionId to:', result.data.id)
         setCurrentSessionId(result.data.id)
-      } else {
-        console.error('result.data is undefined!')
       }
     } catch (error) {
       console.error('Failed to create session:', error)
@@ -31,10 +25,6 @@ export const ChatPanel: React.FC = () => {
   }
 
   const messages = session?.messages || []
-
-  // Debug: 打印 session 数据
-  console.log('Session data:', session)
-  console.log('Messages:', messages)
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -49,24 +39,18 @@ export const ChatPanel: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!inputValue.trim() || !currentSessionId) {
-      console.log('Submit blocked: inputValue =', JSON.stringify(inputValue), 'currentSessionId =', currentSessionId)
       return
     }
 
     const content = inputValue.trim()
-    console.log('=== handleSubmit ===')
-    console.log('Content:', content)
-    console.log('SessionId:', currentSessionId)
-    console.log('Config:', config)
     setInputValue('')
 
     try {
-      const result = await sendMessage.mutateAsync({
+      await sendMessage.mutateAsync({
         sessionId: currentSessionId,
         content,
         config,
       })
-      console.log('Send message result:', result)
     } catch (error) {
       console.error('Failed to send message:', error)
     }

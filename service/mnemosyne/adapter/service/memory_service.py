@@ -13,14 +13,6 @@ class MemoryService:
 
     async def search(self, query: str, user_id: str, limit: int = 10) -> List[MemoryDTO]:
         results = self._memory.search(query, user_id=user_id, limit=limit)
-        # Boost confidence for accessed memories
-        for r in results:
-            memory_id = r.get("id")
-            if memory_id:
-                try:
-                    self._memory.default_context.boost_confidence(memory_id, boost=0.01)
-                except Exception:
-                    pass
         return [self._mapper.from_mnemosyne(r) for r in results]
 
     async def get(self, memory_id: str) -> MemoryDTO:
