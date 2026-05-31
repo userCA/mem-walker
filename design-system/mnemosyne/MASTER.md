@@ -1,4 +1,4 @@
-# Design System Master File
+# Design System Master File — Mnemosyne
 
 > **LOGIC:** When building a specific page, first check `design-system/pages/[page-name].md`.
 > If that file exists, its rules **override** this Master file.
@@ -6,9 +6,11 @@
 
 ---
 
-**Project:** Mnemosyne
+**Project:** Mnemosyne — Holographic Cognitive Memory System
 **Generated:** 2026-05-31 16:36:06
-**Category:** SaaS (General)
+**Updated:** 2026-05-31 (aligned with actual project tokens)
+**Category:** AI Platform / SaaS Dashboard
+**Stack:** React + Tailwind CSS + Zustand + React Query
 
 ---
 
@@ -16,48 +18,78 @@
 
 ### Color Palette
 
-| Role | Hex | CSS Variable |
-|------|-----|--------------|
-| Primary | `#1E40AF` | `--color-primary` |
-| Secondary | `#3B82F6` | `--color-secondary` |
-| CTA/Accent | `#22C55E` | `--color-cta` |
-| Background | `#EFF6FF` | `--color-background` |
-| Text | `#1E3A8A` | `--color-text` |
+| Role | Hex | CSS Variable | Tailwind |
+|------|-----|-------------|----------|
+| Primary/Accent | `#f59e0b` | `--color-amber` | `text-amber-500` `bg-amber-500` |
+| Accent Highlight | `#fef3c7` | `--color-amber-highlight` | `bg-amber-50` |
+| Background | `#faf9f7` | `--color-background` | `bg-background` |
+| Card Surface | `#ffffff` | `--color-card` | `bg-card` |
+| Text Primary | `#1a1a1a` | `--color-text-primary` | `text-text-primary` |
+| Text Secondary | `#64748b` | `--color-text-secondary` | `text-text-secondary` |
+| Text Muted | `#8b8680` | `--color-text-muted` | `text-text-muted` |
+| Border | `#e2ddd8` | `--color-border` | `border-border` |
+| Border Light | `#f0eeeb` | `--color-border-light` | `border-border-light` |
+| Success | `#22c55e` | `--color-success` | `text-success` |
+| Layer Semantic | `#8b5cf6` | `--color-layer-semantic` | — |
+| Layer Episodic | `#3b82f6` | `--color-layer-episodic` | — |
+| Layer Procedural | `#10b981` | `--color-layer-procedural` | — |
+| Layer Working | `#f97316` | `--color-layer-working` | — |
 
-**Color Notes:** Professional blue + join green
+**Color Strategy:** Warm amber accent on neutral warm-white surface. High contrast text (4.7:1+). Layer colors reserved for memory category differentiation.
 
 ### Typography
 
-- **Heading Font:** Poppins
-- **Body Font:** Open Sans
-- **Mood:** modern, professional, clean, corporate, friendly, approachable
-- **Google Fonts:** [Poppins + Open Sans](https://fonts.google.com/share?selection.family=Open+Sans:wght@300;400;500;600;700|Poppins:wght@400;500;600;700)
+- **Font Family:** Inter (single font, weight variations)
+- **Style Name:** Minimal Swiss
+- **Mood:** clean, functional, neutral, professional, readable
+- **CSS:** `font-family: 'Inter', system-ui, -apple-system, sans-serif` (already in `index.css`)
 
-**CSS Import:**
-```css
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
-```
+**Weight scale:**
 
-### Spacing Variables
+| Weight | Usage |
+|--------|-------|
+| 400 (regular) | Body text, inputs |
+| 500 (medium) | Labels, badges, secondary headings |
+| 600 (semibold) | Primary headings, card titles |
+| 700 (bold) | Hero text, key metrics |
+
+**Line height:** 1.5 for body, 1.25 for headings. Max line length: 72ch for prose content.
+
+### Spacing Scale (Tailwind default)
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--space-xs` | `4px` / `0.25rem` | Tight gaps |
-| `--space-sm` | `8px` / `0.5rem` | Icon gaps, inline spacing |
-| `--space-md` | `16px` / `1rem` | Standard padding |
-| `--space-lg` | `24px` / `1.5rem` | Section padding |
-| `--space-xl` | `32px` / `2rem` | Large gaps |
-| `--space-2xl` | `48px` / `3rem` | Section margins |
-| `--space-3xl` | `64px` / `4rem` | Hero padding |
+| `p-2` / `gap-2` | 8px | Icon gaps, badge padding |
+| `p-3` / `gap-3` | 12px | Compact card padding |
+| `p-4` / `gap-4` | 16px | Standard card/panel padding |
+| `p-6` / `gap-6` | 24px | Section padding |
+| `p-8` | 32px | Page padding, large gaps |
 
 ### Shadow Depths
 
+| Level | Tailwind | Usage |
+|-------|----------|-------|
+| Subtle | `shadow-sm` | Cards at rest |
+| Standard | `shadow-md` | Hovered cards, dropdowns |
+| Elevated | `shadow-lg` | Modals, featured cards |
+| Overlay | `shadow-xl` | Full-screen modals |
+
+### Z-Index Scale
+
 | Level | Value | Usage |
 |-------|-------|-------|
-| `--shadow-sm` | `0 1px 2px rgba(0,0,0,0.05)` | Subtle lift |
-| `--shadow-md` | `0 4px 6px rgba(0,0,0,0.1)` | Cards, buttons |
-| `--shadow-lg` | `0 10px 15px rgba(0,0,0,0.1)` | Modals, dropdowns |
-| `--shadow-xl` | `0 20px 25px rgba(0,0,0,0.15)` | Hero images, featured cards |
+| Base | `z-0` | Content |
+| Dropdown | `z-40` | Dropdowns, popovers, tooltips |
+| Navbar | `z-50` | Fixed sidebar, header |
+
+### Border Radius
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `rounded-md` | 6px | Inputs, badges |
+| `rounded-lg` | 8px | Cards, buttons |
+| `rounded-xl` | 12px | Modals, panels |
+| `rounded-full` | 9999px | Avatars, pills, toggle indicators |
 
 ---
 
@@ -65,125 +97,179 @@
 
 ### Buttons
 
-```css
-/* Primary Button */
-.btn-primary {
-  background: #22C55E;
-  color: white;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 200ms ease;
-  cursor: pointer;
-}
+```tsx
+// Primary (amber filled)
+<button className="px-4 py-2 bg-amber-500 text-white rounded-lg font-medium
+  hover:bg-amber-600 active:bg-amber-700
+  transition-colors duration-200 cursor-pointer
+  focus-visible:outline-2 focus-visible:outline-amber-500 focus-visible:outline-offset-2
+  disabled:opacity-50 disabled:cursor-not-allowed">
+  {children}
+</button>
 
-.btn-primary:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-/* Secondary Button */
-.btn-secondary {
-  background: transparent;
-  color: #1E40AF;
-  border: 2px solid #1E40AF;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 200ms ease;
-  cursor: pointer;
-}
+// Ghost (text-only, for secondary actions)
+<button className="px-3 py-1.5 text-text-secondary rounded-lg
+  hover:bg-gray-100 hover:text-text-primary
+  transition-colors duration-200 cursor-pointer
+  focus-visible:outline-2 focus-visible:outline-amber-500 focus-visible:outline-offset-2">
+  {children}
+</button>
 ```
+
+**Rules:**
+- Always show loading state (spinner + disabled) during async operations
+- Minimum touch target 44x44px on mobile (`px-4 py-2` = 32px + text, add `min-h-[44px]` for mobile)
 
 ### Cards
 
-```css
-.card {
-  background: #EFF6FF;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--shadow-md);
-  transition: all 200ms ease;
-  cursor: pointer;
-}
+```tsx
+// Interactive card with hover
+<div className="rounded-lg bg-card border border-border-light p-4
+  transition-all duration-200 cursor-pointer
+  hover:shadow-md hover:border-amber/30
+  focus-visible:outline-2 focus-visible:outline-amber-500 focus-visible:outline-offset-2">
+  {children}
+</div>
 
-.card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
-}
+// Selected card state
+<div className="rounded-lg bg-card border p-4
+  transition-all duration-200 cursor-pointer
+  border-[var(--color-amber)] shadow-[0_2px_8px_rgba(245,158,11,0.15)]
+  bg-gradient-to-br from-amber-50 to-white">
+  {children}
+</div>
 ```
+
+**Rules:**
+- Always `cursor-pointer` on clickable cards
+- Hover transition 200ms, not scale transforms (prevents layout shift)
+- Selected state uses amber border + warm gradient background
+- Internal spacing: use `space-y-4` for consistent card body spacing
 
 ### Inputs
 
-```css
-.input {
-  padding: 12px 16px;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  font-size: 16px;
-  transition: border-color 200ms ease;
-}
-
-.input:focus {
-  border-color: #1E40AF;
-  outline: none;
-  box-shadow: 0 0 0 3px #1E40AF20;
-}
+```tsx
+<input className="px-3 py-2 border border-border-light rounded-lg
+  text-sm text-text-primary bg-card
+  placeholder:text-text-muted
+  transition-colors duration-200
+  focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20" />
 ```
 
-### Modals
+### Sidebar / Navigation
 
-```css
-.modal-overlay {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-}
-
-.modal {
-  background: white;
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: var(--shadow-xl);
-  max-width: 500px;
-  width: 90%;
-}
+```tsx
+// Active nav item
+<button className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm
+  bg-amber-50 text-amber-700 font-medium
+  transition-colors duration-200 cursor-pointer">
+// Inactive nav item
+<button className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm
+  text-text-secondary hover:bg-gray-100
+  transition-colors duration-200 cursor-pointer">
 ```
+
+**Rules:**
+- Active state: `bg-amber-50 text-amber-700 font-medium`
+- Inactive: `text-text-secondary hover:bg-gray-100`
+- Sidebar width: `w-64` (256px), with `border-r border-border`
+
+### Skeleton Loading
+
+```tsx
+<div className="animate-pulse">
+  <div className="h-4 bg-gray-200 rounded w-3/4 mb-3" />
+  <div className="h-4 bg-gray-200 rounded w-1/2 mb-3" />
+  <div className="h-4 bg-gray-200 rounded w-5/6" />
+</div>
+```
+
+### Empty State
+
+```tsx
+<div className="flex flex-col items-center justify-center h-full text-center py-12">
+  <p className="text-text-muted mb-2">{emptyMessage}</p>
+  {actionButton}
+</div>
+```
+
+### Error State
+
+```tsx
+<div className="flex flex-col items-center justify-center h-full text-center py-12">
+  <p className="text-red-500 mb-2">{error.message}</p>
+  <button onClick={refetch} className="text-amber-600 hover:underline cursor-pointer">重试</button>
+</div>
+```
+
+### Badges / Tags
+
+```tsx
+// Active/pressed tag
+<span className="px-2 py-1 rounded-full text-xs bg-amber-500 text-white cursor-pointer">
+// Inactive tag
+<span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-text-secondary hover:bg-gray-200 cursor-pointer transition-colors duration-200">
+```
+
+---
+
+## Page Patterns
+
+### Dashboard Layout (3-column)
+
+```
+┌──────────────────────────────────────────────┐
+│ Header (h-14, border-b, bg-card)             │
+├──────────┬───────────────────────┬───────────┤
+│ Sidebar  │ Main Content          │ Detail    │
+│ w-64     │ flex-1                │ w-80      │
+│ border-r │ overflow-y-auto       │ border-l  │
+│ p-4      │ p-6                   │ p-4       │
+├──────────┴───────────────────────┴───────────┤
+│ Status bar (h-8, text-xs, text-text-muted)    │
+└──────────────────────────────────────────────┘
+```
+
+**Current implementation:** `App.tsx` mode-based conditional rendering:
+- `mode === 'memory'` → `<MemorySidebar /> <MemoryList /> <MemoryDetail />`
+- `mode === 'chat'` → `<ChatSidebar /> <ChatPanel />`
+- `mode === 'backend'` → `<BackendSidebar /> <BackendDetail />`
 
 ---
 
 ## Style Guidelines
 
-**Style:** Glassmorphism
+**Style:** Warm Minimal + Glassmorphism accents
 
-**Keywords:** Frosted glass, transparent, blurred background, layered, vibrant background, light source, depth, multi-layer
+**Keywords:** clean, warm, amber glow, frosted panels, high readability, professional, neutral background
 
-**Best For:** Modern SaaS, financial dashboards, high-end corporate, lifestyle apps, modal overlays, navigation
+**Key Effects:**
+- Cards: `bg-card` (white) on `bg-background` (warm off-white `#faf9f7`)
+- Selected state: `bg-gradient-to-br from-amber-50 to-white` + amber border
+- Divider: `border-border` (`#e2ddd8`) — visible but subtle
+- Hover feedback: color/opacity transition 150-200ms, no scale transforms
 
-**Key Effects:** Backdrop blur (10-20px), subtle border (1px solid rgba white 0.2), light reflection, Z-depth
+### Light Mode ONLY
 
-### Page Pattern
-
-**Pattern Name:** Minimal Single Column
-
-- **Conversion Strategy:** Single CTA focus. Large typography. Lots of whitespace. No nav clutter. Mobile-first.
-- **CTA Placement:** Center, large CTA button
-- **Section Order:** 1. Hero headline, 2. Short description, 3. Benefit bullets (3 max), 4. CTA, 5. Footer
+Mnemosyne is light-mode only. No dark mode needed. Ensure:
+- Text contrast minimum 4.5:1 (body text `#1a1a1a` on `#faf9f7` = 13.5:1 ✅)
+- Muted text minimum 3:1 (`#8b8680` on `#faf9f7` = 3.1:1 ✅)
+- Glass/transparent cards: use `bg-white/80` or higher opacity
 
 ---
 
 ## Anti-Patterns (Do NOT Use)
 
-- ❌ Excessive animation
-- ❌ Dark mode by default
-
-### Additional Forbidden Patterns
-
-- ❌ **Emojis as icons** — Use SVG icons (Heroicons, Lucide, Simple Icons)
-- ❌ **Missing cursor:pointer** — All clickable elements must have cursor:pointer
-- ❌ **Layout-shifting hovers** — Avoid scale transforms that shift layout
-- ❌ **Low contrast text** — Maintain 4.5:1 minimum contrast ratio
-- ❌ **Instant state changes** — Always use transitions (150-300ms)
-- ❌ **Invisible focus states** — Focus states must be visible for a11y
+- ❌ **Emojis as UI icons** — Use Lucide/Heroicons SVG (project already uses emojis in ChatPanel: 💬 — migrate to `<MessageCircle />` icon)
+- ❌ **console.log in production** — Already cleaned. Verify with grep before commit.
+- ❌ **Hardcoded hex colors** — Use CSS variables or Tailwind amber classes.
+- ❌ **Scale transforms on hover** — Shifts layout. Use color/shadow transitions instead.
+- ❌ **Missing `cursor-pointer`** on clickable cards/buttons
+- ❌ **`bg-white/10` on light backgrounds** — Invisible glass. Use `bg-white/80` minimum.
+- ❌ **Dark mode** — Project is light-mode only
+- ❌ **Excessive animation** — Use 150-200ms max for micro-interactions
+- ❌ **Instant state changes** — Always use `transition-colors duration-200`
+- ❌ **Emoji in ChatMessage avatars** — `👤` `🤖` in ChatMessage.tsx. Replace with SVG icons.
 
 ---
 
@@ -191,13 +277,29 @@
 
 Before delivering any UI code, verify:
 
-- [ ] No emojis used as icons (use SVG instead)
-- [ ] All icons from consistent icon set (Heroicons/Lucide)
+### Visual Quality
+- [ ] No emojis as icons (use Lucide SVG instead)
+- [ ] All colors use CSS variables or Tailwind classes (no hex in JSX)
 - [ ] `cursor-pointer` on all clickable elements
-- [ ] Hover states with smooth transitions (150-300ms)
-- [ ] Light mode: text contrast 4.5:1 minimum
-- [ ] Focus states visible for keyboard navigation
-- [ ] `prefers-reduced-motion` respected
-- [ ] Responsive: 375px, 768px, 1024px, 1440px
-- [ ] No content hidden behind fixed navbars
+- [ ] Hover states with smooth transitions (150-200ms)
+
+### Component States
+- [ ] Loading: skeleton/spinner rendered
+- [ ] Empty: guided message, not blank page
+- [ ] Error: message + retry button
+- [ ] Active/selected: visually distinct
+
+### Layout
+- [ ] No content hidden behind fixed navbars/sidebars
+- [ ] Responsive at 375px (mobile), 768px (tablet), 1024px (desktop)
 - [ ] No horizontal scroll on mobile
+
+### Accessibility
+- [ ] Text contrast 4.5:1 minimum
+- [ ] Focus states visible (`focus-visible:outline-2 focus-visible:outline-amber-500`)
+- [ ] Form inputs have labels or aria-label
+- [ ] No `console.log` residuals
+
+### Performance
+- [ ] `prefers-reduced-motion` respected
+- [ ] Images lazy-loaded where applicable
