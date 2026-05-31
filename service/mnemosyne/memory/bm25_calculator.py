@@ -47,7 +47,11 @@ class BM25Calculator:
         if terms is None:
             raise ValueError("terms cannot be None")
         if not terms:
+            self.corpus_size += 1
             return []
+
+        # Normalize terms (lowercase for consistency with queries)
+        terms = [t.lower() for t in terms]
 
         self.corpus_size += 1
         doc_len = len(terms)

@@ -32,7 +32,8 @@ class MilvusVectorStore(VectorStoreBase):
         
         self.config = config
         self.collection: Optional[Collection] = None
-        
+        self._collection_loaded: bool = False
+
         try:
             # Connect to Milvus
             connections.connect(
@@ -83,6 +84,7 @@ class MilvusVectorStore(VectorStoreBase):
                 self._ensure_bm25_index()
                 # Now load the collection
                 self.collection.load()
+                self._collection_loaded = True
         else:
             logger.info(f"Creating new collection: {collection_name}")
             self.create_collection(
@@ -91,7 +93,8 @@ class MilvusVectorStore(VectorStoreBase):
                 distance_metric=self.config.distance_metric
             )
             self.collection.load()
-    
+            self._collection_loaded = True
+
     def create_collection(
         self,
         name: str,
@@ -305,9 +308,11 @@ class MilvusVectorStore(VectorStoreBase):
             raise VectorStoreError("Collection not initialized")
         
         try:
-            # Load collection
-            self.collection.load()
-            
+            # Load collection only if not already loaded
+            if not self._collection_loaded:
+                self.collection.load()
+                self._collection_loaded = True
+
             # Build filter expression
             expr = None
             if filters and "user_id" in filters:
@@ -474,7 +479,10 @@ class MilvusVectorStore(VectorStoreBase):
             raise VectorStoreError("Collection not initialized")
 
         try:
-            self.collection.load()
+            # Load collection only if not already loaded
+            if not self._collection_loaded:
+                self.collection.load()
+                self._collection_loaded = True
 
             # Build filter expression
             expr = None

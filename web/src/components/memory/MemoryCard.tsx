@@ -109,6 +109,23 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({
         ))}
         <span className="ml-1 text-xs text-text-muted">重要性</span>
       </div>
+
+      {/* Confidence indicator */}
+      <div className="flex items-center gap-2 mt-2">
+        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={cn(
+              'h-full rounded-full transition-all',
+              memory.confidence >= 0.7 ? 'bg-green-500' :
+              memory.confidence >= 0.3 ? 'bg-yellow-500' : 'bg-red-500'
+            )}
+            style={{ width: `${memory.confidence * 100}%` }}
+          />
+        </div>
+        <span className="text-xs text-text-muted min-w-[3rem] text-right">
+          置信度 {Math.round(memory.confidence * 100)}%
+        </span>
+      </div>
     </Card>
   )
 }

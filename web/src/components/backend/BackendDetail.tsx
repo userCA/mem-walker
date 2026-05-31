@@ -9,7 +9,7 @@ interface BackendDetailProps {
 
 export const BackendDetail: React.FC<BackendDetailProps> = ({ provider }) => {
   const { data: backend, isLoading } = useBackend(provider)
-  const { data: metrics } = useBackendMetrics(provider)
+  const { data: metrics } = useBackendMetrics(provider, backend?.status === 'connected')
   const { setIsConfigModalOpen, setEditingConfig } = useBackendStore()
 
   const providerLabels: Record<BackendProvider, string> = {

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, Badge, Button } from '@/components/ui'
+import { Badge, Button } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import type { ChatMessage as ChatMessageType } from '@/types'
 

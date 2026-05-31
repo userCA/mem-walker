@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "node",
+      "args": ["/Users/yuanbaishu/.nvm/versions/node/v24.5.0/bin/playwright-mcp"],
+      "env": {}
+    }
+  }
+}

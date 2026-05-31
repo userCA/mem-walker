@@ -1,4 +1,20 @@
 {
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/yuanbaishu/pythonProject/memory-module && PYTHONPATH=service python -m pytest tests/ -q --tb=short --override-ini=\"addopts=\" 2>&1 | tail -5",
+            "timeout": 120,
+            "statusMessage": "Running tests..."
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python -c:*)",
@@ -45,7 +61,14 @@
       "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python3 -m pytest:*)",
       "Bash(PYTHONPATH=/Users/yuanbaishu/pythonProject/memory-module/service /Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python3 -m pytest:*)",
       "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module diff --stat)",
-      "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module log --oneline -5)"
+      "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module log --oneline -5)",
+      "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module commit -m \"$(cat <<''EOF''\nrefactor: remove old FastAPI backend, migrate to mnemosyne-adapter\n\n- Delete server/app/ directory (old FastAPI backend)\n- Update mnemosyne-adapter (config, controllers, services, store)\n- Update integration tests for new architecture\n- Update AGENT.md to reflect new project structure\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git -C /Users/yuanbaishu/pythonProject/memory-module push)",
+      "Bash(PYTHONPATH=/Users/yuanbaishu/pythonProject/memory-module/service /Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python -m pytest:*)",
+      "Bash(PYTHONPATH=/Users/yuanbaishu/pythonProject/memory-module/service /Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python:*)",
+      "Bash(PYTHONPATH=/Users/yuanbaishu/pythonProject/memory-module/service /Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/uvicorn:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

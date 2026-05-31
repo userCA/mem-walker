@@ -1,11 +1,14 @@
 import uuid
 from datetime import datetime
 from typing import List, Optional
+import logging
 from ..store.session_store import SessionStore
 from ..mapper.chat_mapper import ChatMapper
 from ..dto.chat_dto import ChatSession, ChatMessage, ChatRole, SendMessageRequest
 from ..llm.base import LLMProvider, LLMMessage
 from ..exception.adapters import NotFoundError
+
+logger = logging.getLogger(__name__)
 
 class ChatService:
     """Service layer for chat operations."""
@@ -33,10 +36,24 @@ class ChatService:
         session_data = await self._store.get_session(session_id)
         if not session_data:
             raise NotFoundError("Session", session_id)
+
+        # Get messages for this session
+        message_data = await self._store.get_messages(session_id)
+        messages = [
+            ChatMessage(
+                id=m["id"],
+                role=ChatRole(m["role"]),
+                content=m["content"],
+                status=m["status"],
+                createdAt=m["created_at"]
+            )
+            for m in message_data
+        ]
+
         return ChatSession(
             id=session_data["id"],
             title=session_data["title"],
-            messages=[],
+            messages=messages,
             memoryCount=session_data["memory_count"],
             createdAt=session_data["created_at"],
             updatedAt=session_data["updated_at"],
@@ -77,6 +94,15 @@ class ChatService:
             createdAt=datetime.now()
         )
 
+        # Store user message in session store
+        await self._store.add_message(
+            session_id=session_id,
+            message_id=user_msg.id,
+            role=user_msg.role.value,
+            content=user_msg.content,
+            status="sent"
+        )
+
         # Store user message as episodic memory in mnemosyne
         if self._memory_service:
             await self._memory_service.create_episodic_memory(
@@ -101,11 +127,19 @@ class ChatService:
 
         # Call LLM
         llm_config = config or {}
-        assistant_content = await self._llm.chat(
-            messages,
-            temperature=llm_config.get("temperature", 0.7),
-            max_tokens=llm_config.get("maxTokens", 2000)
-        )
+        try:
+            assistant_content = await self._llm.chat(
+                messages,
+                temperature=llm_config.get("temperature", 0.7),
+                max_tokens=llm_config.get("maxTokens", 2000)
+            )
+        except Exception as exc:
+            # Keep chat endpoint available even when external LLM is temporarily unavailable.
+            logger.exception("LLM chat call failed, using graceful fallback response")
+            assistant_content = (
+                "抱歉，我现在无法连接到模型服务，暂时不能生成完整回复。"
+                "你可以稍后重试，或先继续记录你的信息，我会继续保存上下文。"
+            )
 
         # Create assistant message
         assistant_msg = ChatMessage(
@@ -113,6 +147,15 @@ class ChatService:
             role=ChatRole.ASSISTANT,
             content=assistant_content,
             createdAt=datetime.now()
+        )
+
+        # Store assistant message in session store
+        await self._store.add_message(
+            session_id=session_id,
+            message_id=assistant_msg.id,
+            role=assistant_msg.role.value,
+            content=assistant_msg.content,
+            status="sent"
         )
 
         # Store assistant message as episodic memory in mnemosyne

@@ -32,6 +32,7 @@ export interface Memory {
   status: MemoryStatus
   priority: MemoryPriority
   importance: MemoryImportance
+  confidence: number
   tags: MemoryTag[]
   layer?: 'semantic' | 'episodic' | 'procedural' | 'working'
   access: MemoryAccess
@@ -64,6 +65,8 @@ export interface MemoryStats {
   byPriority: Record<MemoryPriority, number>
   byLayer: Record<string, number>
   averageImportance: number
+  averageConfidence: number
+  byConfidence: Record<string, number>
 }
 
 export interface MemoryBatchAction {

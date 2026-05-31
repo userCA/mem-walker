@@ -66,10 +66,10 @@ class _MemoryWriter:
     """Internal writer component - handles memory creation."""
 
     # Semantic similarity thresholds for conflict detection
-    SEMANTIC_DUPLICATE_THRESHOLD = 0.92  # Above this = exact duplicate
+    SEMANTIC_DUPLICATE_THRESHOLD = 0.99  # Above this = exact duplicate
     SEMANTIC_SAFE_THRESHOLD = 0.70       # Below this = no conflict risk
     SEMANTIC_GRAY_ZONE_MIN = 0.70        # Gray zone lower bound
-    SEMANTIC_GRAY_ZONE_MAX = 0.92        # Gray zone upper bound
+    SEMANTIC_GRAY_ZONE_MAX = 0.99        # Gray zone upper bound
 
     # Conflict resolution strategies
     STRATEGY_NEWER_WINS = "newer_wins"   # New memory overwrites/conflicts old
@@ -126,29 +126,33 @@ class _MemoryWriter:
                 logger.info(f"Duplicate memory found (hash) for user {user_id}, skipping insert.")
                 return existing[0]["id"]
 
-            # 1.2 Semantic Deduplication (using raw input)
-            # This saves LLM costs if the raw input is already semantically present
-            logger.debug("Generating embedding for deduplication check")
-            # We use the raw message for initial semantic check
-            # This assumes that if the raw message is semantically identical to a stored memory, 
-            # we don't need to extract facts again.
-            embedding_vector = self.embedding.embed(messages)
-            
-            try:
-                similar_memories = self.vector_store.search(
-                    query_vector=embedding_vector,
-                    limit=1,
-                    filters={"user_id": user_id}
-                )
-                
-                if similar_memories:
-                    top_match = similar_memories[0]
-                    # Threshold 0.92 indicates very high semantic similarity
-                    if top_match.get("score", 0.0) > 0.92:
-                        logger.info(f"Semantic duplicate found (score: {top_match['score']:.4f}) for user {user_id}, skipping insert.")
-                        return top_match["id"]
-            except Exception as e:
-                logger.warning(f"Semantic deduplication check failed: {e}")
+            # 1.2 Semantic Deduplication
+            # When infer=True, we do semantic dedup AFTER extraction on the extracted content
+            # When infer=False, we do semantic dedup on the raw message
+            embedding_vector = None
+            similar_memories = []
+            _top_match_score = 0.0
+
+            if not infer:
+                # For non-infer mode, check dedup on raw message (before LLM cost)
+                logger.debug("Generating embedding for deduplication check")
+                embedding_vector = self.embedding.embed(messages)
+
+                try:
+                    similar_memories = self.vector_store.search(
+                        query_vector=embedding_vector,
+                        limit=1,
+                        filters={"user_id": user_id}
+                    )
+
+                    if similar_memories:
+                        top_match = similar_memories[0]
+                        # Threshold 0.99 indicates nearly identical content
+                        if top_match.get("score", 0.0) > 0.99:
+                            logger.info(f"Semantic duplicate found (score: {top_match['score']:.4f}) for user {user_id}, skipping insert.")
+                            return top_match["id"]
+                except Exception as e:
+                    logger.warning(f"Semantic deduplication check failed: {e}")
 
             # Store similar_memories for potential conflict detection
             _similar_memories_for_conflict = similar_memories if similar_memories else []
@@ -156,6 +160,7 @@ class _MemoryWriter:
 
             # --- Phase 2: Fact Extraction (Slow / Costly) ---
             # Extract facts if requested
+            content = messages
             if infer:
                 logger.debug(f"Extracting facts for user {user_id}")
                 facts = self.llm.extract_facts(messages, user_id)
@@ -163,18 +168,28 @@ class _MemoryWriter:
                 if facts:
                     # Use first fact as content, or original message
                     content = facts[0].get("fact", messages) if facts else messages
-
-                    # If content changed significantly, we might need to re-embed
-                    # But usually fact extraction just cleans up the text.
-                    # For strict correctness, let's re-embed if content != messages
-                    if content != messages:
-                        embedding_vector = self.embedding.embed(content)
-                        # Re-calculate hash for the final content
-                        content_hash = hashlib.md5(content.strip().encode('utf-8')).hexdigest()
                 else:
                     content = messages
-            else:
-                content = messages
+
+                # Always embed the final content for storage (even if same as original)
+                embedding_vector = self.embedding.embed(content)
+
+                # If content changed after extraction, check semantic dedup on extracted content
+                if content != messages:
+                    try:
+                        similar_after_extraction = self.vector_store.search(
+                            query_vector=embedding_vector,
+                            limit=1,
+                            filters={"user_id": user_id}
+                        )
+
+                        if similar_after_extraction:
+                            top_match = similar_after_extraction[0]
+                            if top_match.get("score", 0.0) > 0.99:
+                                logger.info(f"Semantic duplicate found after extraction (score: {top_match['score']:.4f}) for user {user_id}, skipping insert.")
+                                return top_match["id"]
+                    except Exception as e:
+                        logger.warning(f"Semantic dedup check after extraction failed: {e}")
 
             # --- Phase 2.5: Conflict Detection (LLM-based) ---
             # Check for conflicts in the "gray zone" where semantic similarity is ambiguous
@@ -232,6 +247,10 @@ class _MemoryWriter:
             if metadata is None:
                 metadata = {}
             metadata["content_hash"] = content_hash
+            metadata["timestamp"] = int(time.time())  # Add timestamp to metadata
+            # Set default confidence if not provided
+            if "confidence" not in metadata:
+                metadata["confidence"] = 0.8
             
             payload = {
                 "user_id": user_id,
@@ -480,11 +499,13 @@ class _MemoryReader:
                         if entity.lower() in content.lower():
                             score += 0.1
 
+                metadata = result.get("metadata", {})
                 results.append({
                     "id": result.get("id"),
                     "content": content,
                     "score": min(score, 1.0),
-                    "metadata": result.get("metadata"),
+                    "metadata": metadata,
+                    "timestamp": metadata.get("timestamp"),  # Extract timestamp from metadata
                     "user_id": result.get("user_id"),
                     "created_at": result.get("created_at")
                 })
@@ -526,31 +547,70 @@ class _MemoryReader:
 
 class _MemoryLifecycle:
     """Internal lifecycle component - handles memory management."""
-    
+
     def __init__(
         self,
         vector_store: VectorStoreBase,
-        graph_store: GraphStoreBase
+        graph_store: GraphStoreBase,
+        decay_config: Optional[Any] = None,
+        embedding: Optional[EmbeddingBase] = None
     ):
         self.vector_store = vector_store
         self.graph_store = graph_store
-    
+        self.embedding = embedding
+        self.decay_config = decay_config or {
+            "strategy": "hybrid",
+            "half_life_days": 30.0,
+            "min_confidence": 0.1,
+            "access_boost": 0.05
+        }
+
+    def _update_memory_payload(self, memory_id: str, memory: Dict[str, Any]) -> bool:
+        """
+        Update memory payload in a backend-compatible way.
+
+        For SQLite, payload-only update usually succeeds.
+        For Milvus-like backends that require full upsert (vector + payload),
+        retry with re-embedded content if payload-only update fails.
+        """
+        updated = self.vector_store.update(vector_id=memory_id, payload=memory)
+        if updated:
+            return True
+
+        if self.embedding is None:
+            return False
+
+        content = memory.get("content")
+        if not content:
+            return False
+
+        try:
+            vector = self.embedding.embed(content)
+            return self.vector_store.update(
+                vector_id=memory_id,
+                vector=vector,
+                payload=memory
+            )
+        except Exception as e:
+            logger.error(f"Failed to re-embed memory {memory_id} for update: {e}")
+            return False
+
     def delete(self, memory_id: str) -> bool:
         """Delete a memory by ID."""
         try:
             # Delete from vector store
             deleted = self.vector_store.delete(memory_id)
-            
+
             if deleted:
                 logger.info(f"Deleted memory {memory_id}")
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             logger.error(f"Failed to delete memory {memory_id}: {e}")
             return False
-    
+
     def update(
         self,
         memory_id: str,
@@ -563,26 +623,197 @@ class _MemoryLifecycle:
             existing = self.vector_store.get(memory_id)
             if not existing:
                 return False
-            
+
             # Generate new embedding
             new_embedding = embedding.embed(new_content)
-            
+
             # Update payload
             payload = existing.copy()
             payload["content"] = new_content
-            
+
             # Update in vector store
             updated = self.vector_store.update(
                 vector_id=memory_id,
                 vector=new_embedding,
                 payload=payload
             )
-            
+
             if updated:
                 logger.info(f"Updated memory {memory_id}")
-                
+
             return updated
-            
+
         except Exception as e:
             logger.error(f"Failed to update memory {memory_id}: {e}")
+            return False
+
+    def apply_decay(self, user_id: str) -> Dict[str, Any]:
+        """
+        Apply confidence decay to all memories for a user.
+
+        Returns:
+            Dict with statistics about the decay operation
+        """
+        from .utils import (
+            calculate_time_decayed_confidence,
+            calculate_access_decayed_confidence,
+            calculate_hybrid_confidence
+        )
+
+        try:
+            memories = self.vector_store.list(
+                filters={"user_id": user_id},
+                limit=None
+            )
+
+            decayed_count = 0
+            forgotten_count = 0
+            strategy = self.decay_config.get("strategy", "hybrid")
+            half_life = self.decay_config.get("half_life_days", 30.0)
+            min_conf = self.decay_config.get("min_confidence", 0.1)
+            access_boost = self.decay_config.get("access_boost", 0.05)
+
+            for memory in memories:
+                memory_id = memory.get("id")
+                metadata = memory.get("metadata", {})
+
+                # Get current confidence and timestamps
+                current_conf = metadata.get("confidence", 0.8)
+                created_at = metadata.get("timestamp", int(time.time()))
+                access_count = metadata.get("access_count", 0)
+                last_accessed = metadata.get("last_accessed_at")
+
+                # Calculate decayed confidence based on strategy
+                if strategy == "time_decay":
+                    new_conf = calculate_time_decayed_confidence(
+                        current_conf, created_at, half_life, min_conf
+                    )
+                elif strategy == "access_decay":
+                    new_conf = calculate_access_decayed_confidence(
+                        current_conf, access_count, last_accessed,
+                        access_boost, half_life, min_conf
+                    )
+                else:  # hybrid or default
+                    new_conf = calculate_hybrid_confidence(
+                        current_conf, created_at, access_count,
+                        last_accessed, half_life, min_conf, access_boost
+                    )
+
+                # Update metadata if confidence changed
+                if new_conf != current_conf:
+                    metadata["confidence"] = round(new_conf, 4)
+                    metadata["decayed_at"] = int(time.time())
+
+                    # Update in vector store
+                    if self._update_memory_payload(memory_id, memory):
+                        decayed_count += 1
+
+                # Check if memory should be forgotten (archived/deleted)
+                if new_conf <= min_conf:
+                    metadata["status"] = "archived"
+                    metadata["forgotten_at"] = int(time.time())
+                    metadata["forget_reason"] = "confidence_below_threshold"
+
+                    if self._update_memory_payload(memory_id, memory):
+                        forgotten_count += 1
+                        logger.info(f"Memory {memory_id} forgotten (confidence: {new_conf:.4f})")
+
+            logger.info(
+                f"Decay applied to {decayed_count} memories, "
+                f"forgotten {forgotten_count} memories for user {user_id}"
+            )
+
+            return {
+                "decayed_count": decayed_count,
+                "forgotten_count": forgotten_count,
+                "strategy": strategy,
+                "total_checked": len(memories)
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to apply decay: {e}")
+            raise MemoryError(f"Decay operation failed: {e}")
+
+    def cleanup_forgotten(self, user_id: str, dry_run: bool = False) -> Dict[str, Any]:
+        """
+        Permanently delete memories that have been forgotten for a long time.
+
+        Args:
+            user_id: User ID
+            dry_run: If True, only count without deleting
+
+        Returns:
+            Dict with cleanup statistics
+        """
+        try:
+            memories = self.vector_store.list(
+                filters={"user_id": user_id},
+                limit=None
+            )
+
+            current_time = int(time.time())
+            cleanup_threshold_days = 7  # Delete after 7 days of being forgotten
+            cleanup_threshold = cleanup_threshold_days * 24 * 3600
+
+            to_cleanup = []
+
+            for memory in memories:
+                metadata = memory.get("metadata", {})
+                forgotten_at = metadata.get("forgotten_at")
+
+                if forgotten_at and (current_time - forgotten_at) > cleanup_threshold:
+                    to_cleanup.append(memory.get("id"))
+
+            if not dry_run:
+                for memory_id in to_cleanup:
+                    self.vector_store.delete(memory_id)
+
+            logger.info(
+                f"Cleaned up {len(to_cleanup)} forgotten memories for user {user_id}"
+            )
+
+            return {
+                "cleaned_count": len(to_cleanup),
+                "dry_run": dry_run,
+                "threshold_days": cleanup_threshold_days
+            }
+
+        except Exception as e:
+            logger.error(f"Cleanup failed: {e}")
+            raise MemoryError(f"Cleanup operation failed: {e}")
+
+    def boost_confidence(self, memory_id: str, boost: float = 0.05) -> bool:
+        """
+        Boost confidence of a memory (e.g., when accessed).
+
+        Args:
+            memory_id: Memory ID
+            boost: Amount to boost confidence by
+
+        Returns:
+            True if updated successfully
+        """
+        try:
+            memory = self.vector_store.get(memory_id)
+            if not memory:
+                return False
+
+            metadata = memory.get("metadata", {})
+            current_conf = metadata.get("confidence", 0.8)
+
+            # Boost confidence (cap at 1.0)
+            new_conf = min(1.0, current_conf + boost)
+            metadata["confidence"] = round(new_conf, 4)
+            metadata["access_count"] = metadata.get("access_count", 0) + 1
+            metadata["last_accessed_at"] = int(time.time())
+
+            updated = self._update_memory_payload(memory_id, memory)
+            if not updated:
+                return False
+
+            logger.debug(f"Boosted confidence of memory {memory_id} to {new_conf:.4f}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to boost confidence for {memory_id}: {e}")
             return False

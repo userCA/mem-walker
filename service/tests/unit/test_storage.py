@@ -165,3 +165,89 @@ def test_memory_reader_uses_bm25_calculator_for_query():
         mock_vector_store.bm25_search.assert_called_once()
         call_kwargs = mock_vector_store.bm25_search.call_args
         assert call_kwargs.kwargs.get('query_vector') == [(0, 1.5), (100, 0.8)]
+
+
+def test_lifecycle_update_payload_retries_with_embedding_for_upsert_backends():
+    """Lifecycle should retry metadata update with vector when payload-only update fails."""
+    from unittest.mock import MagicMock
+    from mnemosyne.memory.storage import _MemoryLifecycle
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.update.side_effect = [False, True]
+    mock_embedding = MagicMock()
+    mock_embedding.embed.return_value = [0.1] * 384
+
+    lifecycle = _MemoryLifecycle(
+        vector_store=mock_vector_store,
+        graph_store=MagicMock(),
+        embedding=mock_embedding
+    )
+
+    updated = lifecycle._update_memory_payload(
+        memory_id="m1",
+        memory={"id": "m1", "content": "hello world", "metadata": {}}
+    )
+
+    assert updated is True
+    assert mock_vector_store.update.call_count == 2
+    second_call = mock_vector_store.update.call_args_list[1]
+    assert second_call.kwargs["vector_id"] == "m1"
+    assert second_call.kwargs["vector"] == [0.1] * 384
+
+
+def test_lifecycle_boost_confidence_uses_fallback_update():
+    """boost_confidence should succeed with re-embedding fallback when needed."""
+    from unittest.mock import MagicMock
+    from mnemosyne.memory.storage import _MemoryLifecycle
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.get.return_value = {
+        "id": "m1",
+        "content": "memory content",
+        "metadata": {"confidence": 0.5}
+    }
+    # First payload-only update fails, fallback update with vector succeeds.
+    mock_vector_store.update.side_effect = [False, True]
+
+    mock_embedding = MagicMock()
+    mock_embedding.embed.return_value = [0.2] * 384
+
+    lifecycle = _MemoryLifecycle(
+        vector_store=mock_vector_store,
+        graph_store=MagicMock(),
+        embedding=mock_embedding
+    )
+    assert lifecycle.boost_confidence("m1", boost=0.1) is True
+
+
+def test_lifecycle_apply_decay_forgets_memory_at_threshold():
+    """Forgetting should trigger when confidence decays to threshold boundary."""
+    from unittest.mock import MagicMock
+    from mnemosyne.memory.storage import _MemoryLifecycle
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.list.return_value = [
+        {
+            "id": "m-threshold",
+            "content": "threshold memory",
+            "metadata": {
+                "confidence": 0.1,
+                "timestamp": 1700000000
+            }
+        }
+    ]
+    mock_vector_store.update.return_value = True
+
+    lifecycle = _MemoryLifecycle(
+        vector_store=mock_vector_store,
+        graph_store=MagicMock(),
+        decay_config={
+            "strategy": "time_decay",
+            "half_life_days": 30.0,
+            "min_confidence": 0.1,
+            "access_boost": 0.05
+        }
+    )
+
+    result = lifecycle.apply_decay("u1")
+    assert result["forgotten_count"] == 1

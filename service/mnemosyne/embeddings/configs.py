@@ -21,10 +21,11 @@ class EmbeddingConfig:
 @dataclass
 class OpenAIEmbeddingConfig(EmbeddingConfig):
     """Configuration for OpenAI embedding models."""
-    
+
     model: str = "text-embedding-3-small"
     dimension: int = 1536
     encoding_format: str = "float"
+    base_url: Optional[str] = None
 
 
 @dataclass

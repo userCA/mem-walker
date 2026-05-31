@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from ..embeddings.configs import OpenAIEmbeddingConfig
-from ..graphs.configs import Neo4jConfig
+from ..graphs.configs import DuckDBConfig, Neo4jConfig
 from ..llms.configs import OpenAILLMConfig
 from ..reranker.configs import RerankerConfig
 from ..vector_stores.configs import MilvusConfig
@@ -39,10 +39,14 @@ class GlobalSettings:
     embedding_config: OpenAIEmbeddingConfig = field(default_factory=OpenAIEmbeddingConfig)
     vector_store_config: MilvusConfig = field(default_factory=MilvusConfig)
     graph_store_config: Neo4jConfig = field(default_factory=Neo4jConfig)
+    duckdb_config: DuckDBConfig = field(default_factory=DuckDBConfig)
     llm_config: OpenAILLMConfig = field(default_factory=OpenAILLMConfig)
     local_slm_config: LocalSLMConfig = field(default_factory=LocalSLMConfig)
     simple_local_llm_config: SimpleLocalLLMConfig = field(default_factory=SimpleLocalLLMConfig)
     reranker_config: RerankerConfig = field(default_factory=RerankerConfig)
+
+    # Graph store type: "neo4j" or "duckdb"
+    graph_store_type: str = "duckdb"  # Default to duckdb for zero-deployment
 
     # Local storage configuration (SQLite + FAISS)
     local_storage_config: LocalStorageConfig = field(default_factory=LocalStorageConfig)
@@ -54,6 +58,17 @@ class GlobalSettings:
     enable_graph_memory: bool = True
     enable_reranking: bool = True
     enable_local_slm: bool = False
+
+    # Conflict detection settings
+    enable_conflict_detection: bool = True
+    conflict_strategy: str = "newer_wins"  # Options: "newer_wins", "keep_both", "skip"
+
+    # Forgetting strategy settings
+    forgetting_strategy: str = "hybrid"  # Options: "none", "time_decay", "access_decay", "hybrid"
+    forgetting_half_life_days: float = 30.0
+    forgetting_min_confidence: float = 0.1
+    forgetting_access_boost: float = 0.05
+    forgetting_cleanup_days: int = 7  # Days before permanently deleting forgotten memories
 
     # Performance settings
     batch_size: int = 32
@@ -75,6 +90,15 @@ class GlobalSettings:
             settings.embedding_config.api_key = openai_key
             settings.llm_config.api_key = openai_key
 
+        # Load base URL from env (for DeepSeek, etc.)
+        if openai_base_url := os.getenv("OPENAI_BASE_URL"):
+            settings.embedding_config.base_url = openai_base_url
+            settings.llm_config.base_url = openai_base_url
+
+        # Load model name from env
+        if openai_model := os.getenv("OPENAI_MODEL"):
+            settings.llm_config.model = openai_model
+
         # Load Milvus config from env
         if milvus_host := os.getenv("MILVUS_HOST"):
             settings.vector_store_config.host = milvus_host
@@ -86,6 +110,14 @@ class GlobalSettings:
             settings.graph_store_config.uri = neo4j_uri
         if neo4j_password := os.getenv("NEO4J_PASSWORD"):
             settings.graph_store_config.password = neo4j_password
+
+        # Load DuckDB config from env
+        if duckdb_path := os.getenv("DUCKDB_PATH"):
+            settings.duckdb_config.db_path = duckdb_path
+
+        # Load graph store type
+        if graph_store_type := os.getenv("GRAPH_STORE_TYPE"):
+            settings.graph_store_type = graph_store_type
 
         # Load Local SLM config from env
         if slm_model := os.getenv("LOCAL_SLM_MODEL"):

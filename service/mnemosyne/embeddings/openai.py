@@ -32,7 +32,10 @@ class OpenAIEmbedding(EmbeddingBase):
         self.config = config
         
         try:
-            self.client = OpenAI(api_key=config.api_key)
+            self.client = OpenAI(
+                api_key=config.api_key,
+                base_url=config.base_url
+            )
         except Exception as e:
             raise EmbeddingError(f"Failed to initialize OpenAI client: {e}")
         

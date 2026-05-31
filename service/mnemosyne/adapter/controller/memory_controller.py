@@ -3,6 +3,7 @@ from typing import Optional
 from ..dto.common import ApiResponse, PaginatedResponse
 from ..dto.memory_dto import Memory, CreateMemoryRequest, UpdateMemoryRequest, MemoryStats
 from ..service.memory_service import MemoryService
+from ..exception.adapters import FeatureNotImplementedError
 
 router = APIRouter(prefix="/memories", tags=["memories"])
 
@@ -45,6 +46,41 @@ async def search_memories(
     results = await service.search(q, "default_user", limit)
     return ApiResponse(success=True, data=[r.model_dump() for r in results])
 
+@router.get("/tags", response_model=ApiResponse)
+async def get_tags(service: MemoryService = Depends(get_memory_service)):
+    tags = await service.get_tags("default_user")
+    return ApiResponse(success=True, data=tags)
+
+@router.get("/layers", response_model=ApiResponse)
+async def get_layers(service: MemoryService = Depends(get_memory_service)):
+    layers = await service.get_layers("default_user")
+    return ApiResponse(success=True, data=layers)
+
+@router.post("/decay", response_model=ApiResponse)
+async def apply_decay(service: MemoryService = Depends(get_memory_service)):
+    """Apply confidence decay to all memories."""
+    result = await service.apply_decay("default_user")
+    return ApiResponse(success=True, data=result)
+
+@router.post("/cleanup", response_model=ApiResponse)
+async def cleanup_forgotten(
+    dry_run: bool = Query(False),
+    service: MemoryService = Depends(get_memory_service)
+):
+    """Clean up long-forgotten memories."""
+    result = await service.cleanup_forgotten("default_user", dry_run)
+    return ApiResponse(success=True, data=result)
+
+@router.post("/{memory_id}/boost", response_model=ApiResponse)
+async def boost_memory_confidence(
+    memory_id: str,
+    boost: float = Query(0.05, ge=0.0, le=1.0),
+    service: MemoryService = Depends(get_memory_service)
+):
+    """Boost confidence of a memory (e.g., when accessed)."""
+    result = await service.boost_confidence(memory_id, boost)
+    return ApiResponse(success=True, data={"boosted": result})
+
 @router.get("/{memory_id}", response_model=ApiResponse)
 async def get_memory(memory_id: str, service: MemoryService = Depends(get_memory_service)):
     memory = await service.get(memory_id)
@@ -61,6 +97,7 @@ async def create_memory(
         content=request.content,
         priority=request.priority,
         importance=request.importance,
+        confidence=request.confidence,
         tags=[],
         layer=request.layer
     )
@@ -81,3 +118,21 @@ async def update_memory(
 async def delete_memory(memory_id: str, service: MemoryService = Depends(get_memory_service)):
     await service.delete(memory_id)
     return ApiResponse(success=True, data={"message": "Memory deleted"})
+
+@router.post("/export", response_model=ApiResponse)
+async def export_memories(
+    format: str = Query("json"),
+    service: MemoryService = Depends(get_memory_service)
+):
+    """Export API contract reserved, currently not implemented."""
+    raise FeatureNotImplementedError(
+        "memories.export",
+        message=f"Memory export is not implemented yet (requested format: {format})"
+    )
+
+@router.post("/import", response_model=ApiResponse)
+async def import_memories(
+    service: MemoryService = Depends(get_memory_service)
+):
+    """Import API contract reserved, currently not implemented."""
+    raise FeatureNotImplementedError("memories.import")

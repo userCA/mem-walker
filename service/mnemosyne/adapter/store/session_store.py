@@ -1,10 +1,10 @@
 import aiosqlite
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 import uuid
 
 class SessionStore:
-    """SQLite-based session store for ChatSession metadata."""
+    """SQLite-based session store for ChatSession metadata and messages."""
 
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -28,6 +28,20 @@ class SessionStore:
                     updated_at TIMESTAMP,
                     user_id TEXT NOT NULL
                 )
+            """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    status TEXT DEFAULT 'sent',
+                    created_at TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+                )
+            """)
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id)
             """)
             await db.commit()
         self._initialized = True
@@ -103,6 +117,46 @@ class SessionStore:
                 WHERE id = ?
             """, (datetime.now(), session_id))
             await db.commit()
+
+    async def add_message(self, session_id: str, message_id: str, role: str, content: str, status: str = "sent") -> dict:
+        """Add a message to a session."""
+        await self._ensure_init()
+        now = datetime.now()
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
+            await db.execute("""
+                INSERT INTO chat_messages (id, session_id, role, content, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (message_id, session_id, role, content, status, now))
+            await db.commit()
+        return {
+            "id": message_id,
+            "session_id": session_id,
+            "role": role,
+            "content": content,
+            "status": status,
+            "created_at": now
+        }
+
+    async def get_messages(self, session_id: str) -> List[dict]:
+        """Get all messages for a session."""
+        await self._ensure_init()
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
+            async with db.execute(
+                "SELECT id, session_id, role, content, status, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+                (session_id,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return [
+                    {
+                        "id": row[0],
+                        "session_id": row[1],
+                        "role": row[2],
+                        "content": row[3],
+                        "status": row[4],
+                        "created_at": row[5]
+                    }
+                    for row in rows
+                ]
 
     def _row_to_dict(self, row: tuple) -> dict:
         return {

@@ -30,11 +30,11 @@ export function useBackend(provider: BackendProvider) {
   })
 }
 
-export function useBackendMetrics(provider: BackendProvider) {
+export function useBackendMetrics(provider: BackendProvider, isConnected: boolean = false) {
   return useQuery({
     queryKey: backendKeys.metrics(provider),
     queryFn: () => backendApi.getMetrics(provider).then((res) => res.data!),
-    enabled: !!provider,
+    enabled: !!provider && isConnected,
     refetchInterval: 30000, // Refresh every 30 seconds
   })
 }

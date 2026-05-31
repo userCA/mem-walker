@@ -117,7 +117,8 @@ class SQLiteVectorStore(VectorStoreBase):
         self,
         vectors: List[List[float]],
         payloads: Optional[List[Dict[str, Any]]] = None,
-        ids: Optional[List[str]] = None
+        ids: Optional[List[str]] = None,
+        bm25_vectors: Optional[List] = None  # BM25 vectors not supported in SQLite
     ) -> List[str]:
         """Insert vectors with payloads.
 

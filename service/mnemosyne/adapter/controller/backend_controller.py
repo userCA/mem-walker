@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from ..dto.common import ApiResponse
 from ..dto.backend_dto import BackendConfig
 from ..service.backend_service import BackendService
+from ..exception.adapters import FeatureNotImplementedError
 
 router = APIRouter(prefix="/backends", tags=["backends"])
 
@@ -19,6 +20,19 @@ def get_backend_service() -> BackendService:
 async def list_backends(service: BackendService = Depends(get_backend_service)):
     backends = await service.list_backends()
     return ApiResponse(success=True, data=[b.model_dump() for b in backends])
+
+@router.get("/{provider}/metrics", response_model=ApiResponse)
+async def get_backend_metrics(provider: str, service: BackendService = Depends(get_backend_service)):
+    metrics = await service.get_metrics(provider)
+    if not metrics:
+        from ..exception.adapters import NotFoundError
+        raise NotFoundError("Backend", provider)
+    return ApiResponse(success=True, data=metrics.model_dump())
+
+@router.get("/{provider}/collections", response_model=ApiResponse)
+async def get_backend_collections(provider: str, service: BackendService = Depends(get_backend_service)):
+    collections = await service.get_collections(provider)
+    return ApiResponse(success=True, data=[c.model_dump() for c in collections])
 
 @router.get("/{provider}", response_model=ApiResponse)
 async def get_backend(provider: str, service: BackendService = Depends(get_backend_service)):
@@ -42,3 +56,28 @@ async def disconnect_backend(provider: str, service: BackendService = Depends(ge
 async def test_connection(config: BackendConfig, service: BackendService = Depends(get_backend_service)):
     # Test logic would connect and verify
     return ApiResponse(success=True, data={"success": True})
+
+@router.post("/{provider}/collections", response_model=ApiResponse)
+async def create_collection(
+    provider: str,
+    name: str,
+    dimension: int = 384,
+    service: BackendService = Depends(get_backend_service)
+):
+    """Collection management API contract reserved, currently not implemented."""
+    raise FeatureNotImplementedError(
+        "backends.collections.create",
+        message=f"Collection creation is not implemented yet for provider '{provider}' (name={name}, dimension={dimension})"
+    )
+
+@router.delete("/{provider}/collections/{name}", response_model=ApiResponse)
+async def delete_collection(
+    provider: str,
+    name: str,
+    service: BackendService = Depends(get_backend_service)
+):
+    """Collection management API contract reserved, currently not implemented."""
+    raise FeatureNotImplementedError(
+        "backends.collections.delete",
+        message=f"Collection deletion is not implemented yet for provider '{provider}' (name={name})"
+    )

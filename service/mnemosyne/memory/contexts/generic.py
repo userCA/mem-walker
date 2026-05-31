@@ -118,32 +118,44 @@ class GenericMemoryContext(MemoryContext):
     def update(self, memory_id: str, data: Any, **kwargs) -> Dict[str, Any]:
         """
         Update memory content.
-        Needs embedding provided (handled by lifecycle if passed in constructor logic, 
+        Needs embedding provided (handled by lifecycle if passed in constructor logic,
         but lifecycle.update takes embedding arg.
-        
+
         Wait, lifecycle.update signature: update(memory_id, new_content, embedding_model)
         GenericMemoryContext implementation issues: it needs access to embedding model to pass to lifecycle.
-        
-        Refactoring Notice: 
+
+        Refactoring Notice:
         Main Memory class had `self.embedding`. GenericContext was initialized without it in my constructor above?
-        Checking constructor... I passed writer, reader, lifecycle. 
+        Checking constructor... I passed writer, reader, lifecycle.
         _MemoryLifecycle needs embedding for update.
         I should add embedding to constructor or make sure lifecycle has it.
         Existing _MemoryLifecycle definition in storage.py:
         def update(..., embedding: EmbeddingBase)
-        
+
         So GenericContext needs to hold reference to embedding model too.
         """
         updated = self._lifecycle.update(memory_id, data, self._writer.embedding)
         if updated:
             return self.get(memory_id) or {}
         return {}
-    
+
+    def apply_decay(self, user_id: str) -> Dict[str, Any]:
+        """Apply confidence decay to all memories for a user."""
+        return self._lifecycle.apply_decay(user_id)
+
+    def cleanup_forgotten(self, user_id: str, dry_run: bool = False) -> Dict[str, Any]:
+        """Clean up long-forgotten memories for a user."""
+        return self._lifecycle.cleanup_forgotten(user_id, dry_run)
+
+    def boost_confidence(self, memory_id: str, boost: float = 0.05) -> bool:
+        """Boost confidence when memory is accessed."""
+        return self._lifecycle.boost_confidence(memory_id, boost)
+
     def close(self) -> None:
         """
-        Generic context doesn't own the connections (shared), 
+        Generic context doesn't own the connections (shared),
         but we can define behavior if needed.
-        In current design, Memory Facade owns the connections. 
+        In current design, Memory Facade owns the connections.
         So this might be no-op or specific cleanups.
         """
         pass

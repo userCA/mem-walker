@@ -28,14 +28,25 @@ class MilvusConfig(VectorStoreConfig):
     
     # HNSW index parameters
     index_params: dict = None
-    
+
+    # Scalar index configuration: maps field name to index params
+    scalar_index_config: dict = None
+
     def __post_init__(self):
         if self.index_params is None:
             self.index_params = {
                 "M": 16,  # Max connections per layer
                 "efConstruction": 200,  # Build time ef
             }
-        
+
+        if self.scalar_index_config is None:
+            # Default scalar indexes for efficient filtering
+            self.scalar_index_config = {
+                "user_id": {"index_type": "STL_SORT"},
+                "created_at": {"index_type": "INVERTED"},
+                "content": {"index_type": "INVERTED"},
+            }
+
     @property
     def search_params(self) -> dict:
         """Parameters for search."""

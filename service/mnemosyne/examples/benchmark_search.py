@@ -5,17 +5,25 @@ Usage:
 """
 
 import argparse
+import os
+import sys
 import time
+from pathlib import Path
 from statistics import mean, median
 from typing import List
+from dotenv import load_dotenv
+
+# Load .env file
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(env_path)
 
 # Add parent directory to path
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from mnemosyne import Memory
 from mnemosyne.configs import GlobalSettings
+from mnemosyne.embeddings import FastEmbedEmbedding
+from mnemosyne.embeddings.configs import FastEmbedConfig
 from mnemosyne.utils import setup_logging
 
 
@@ -81,11 +89,55 @@ def main():
     print(f"Graph memory: enabled")
     print(f"Reranking: enabled")
     print()
-    
+
     # Initialize Memory
     print("Initializing Memory system...")
     config = GlobalSettings.from_env()
-    memory = Memory(config=config)
+
+    # Check if local SLM should be used (office network optimization)
+    enable_local_slm = os.getenv("ENABLE_LOCAL_SLM", "false").lower() == "true"
+    local_llm_base_url = os.getenv("LOCAL_LLM_BASE_URL", "")
+
+    if enable_local_slm and local_llm_base_url:
+        # Use local LLM for faster inference in office network
+        config.llm_config.api_key = os.getenv("LOCAL_SLM_API_KEY", "not-needed")
+        config.llm_config.base_url = local_llm_base_url
+        config.llm_config.model = os.getenv("LOCAL_LLM_MODEL", "Qwen3-30B-A3B")
+        print(f"Using local LLM: {config.llm_config.base_url}")
+    else:
+        # Configure DeepSeek LLM from environment variables
+        deepseek_api_key = os.getenv("ADAPTER_DEEPSEEK_API_KEY") or os.getenv("OPENAI_API_KEY")
+        deepseek_base_url = os.getenv("ADAPTER_DEEPSEEK_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+        deepseek_model = os.getenv("ADAPTER_DEEPSEEK_MODEL") or os.getenv("OPENAI_MODEL") or "deepseek-chat"
+
+        if deepseek_api_key:
+            config.llm_config.api_key = deepseek_api_key
+        if deepseek_base_url:
+            config.llm_config.base_url = deepseek_base_url
+        if deepseek_model:
+            config.llm_config.model = deepseek_model
+
+    # Use FastEmbed for local embedding (no API key needed)
+    fastembed_config = FastEmbedConfig(
+        model="BAAI/bge-small-en-v1.5",
+        dimension=384
+    )
+    embedding = FastEmbedEmbedding(fastembed_config)
+    config.embedding_config.dimension = 384
+    config.vector_store_config.vector_size = 384
+
+    # Drop existing collection to recreate with correct dimension
+    print("Cleaning up existing collections...")
+    try:
+        from pymilvus import connections, utility
+        connections.connect(host=config.vector_store_config.host, port=config.vector_store_config.port)
+        if utility.has_collection("mnemosyne_memories"):
+            utility.drop_collection("mnemosyne_memories")
+            print("Dropped existing mnemosyne_memories collection.")
+    except Exception as e:
+        print(f"Cleanup warning (may be expected): {e}")
+
+    memory = Memory(embedding=embedding, config=config)
     
     # Add some sample memories
     sample_memories = [

@@ -11,7 +11,7 @@ from ..configs import GlobalSettings
 from ..embeddings import CachedEmbedding, OpenAIEmbedding
 from ..embeddings.base import EmbeddingBase
 from ..exceptions import ConfigurationError
-from ..graphs import Neo4jGraphStore
+from ..graphs import DuckDBGraphStore, Neo4jGraphStore
 from ..graphs.base import GraphStoreBase
 from ..llms import LocalSLM, OpenAILLM
 from ..llms.base import LLMBase
@@ -85,8 +85,8 @@ class Memory(MemoryBase):
             # Storage backend selection
             self._setup_storage_backend(vector_store)
 
-            # Graph store (still uses Neo4j unless explicitly configured otherwise)
-            self.graph_store = graph_store or Neo4jGraphStore(config.graph_store_config)
+            # Graph store (supports Neo4j and DuckDB based on config)
+            self.graph_store = graph_store or self._init_graph_store(config)
 
             # LLMs
             self.llm = llm or OpenAILLM(config.llm_config)
@@ -155,6 +155,38 @@ class Memory(MemoryBase):
         """Check if running in local mode."""
         return self._using_local_storage
 
+    def _init_graph_store(self, config: GlobalSettings) -> GraphStoreBase:
+        """Initialize graph store based on configuration.
+
+        Supports:
+        - "duckdb": DuckDB (default, zero-deployment)
+        - "neo4j": Neo4j (external service required)
+        """
+        graph_type = config.graph_store_type.lower()
+
+        if graph_type == "duckdb":
+            try:
+                logger.info(f"Using DuckDB graph store: {config.duckdb_config.db_path}")
+                return DuckDBGraphStore(config.duckdb_config)
+            except Exception as e:
+                logger.warning(f"Failed to initialize DuckDB graph store: {e}")
+                logger.warning("Falling back to Neo4j")
+                graph_type = "neo4j"
+        else:
+            logger.warning(f"Unknown graph store type '{graph_type}', defaulting to DuckDB")
+            graph_type = "duckdb"
+
+        # Fallback to Neo4j or raise error
+        try:
+            logger.info(f"Using Neo4j graph store: {config.graph_store_config.uri}")
+            return Neo4jGraphStore(config.graph_store_config)
+        except Exception as e:
+            raise ConfigurationError(
+                f"Failed to initialize graph store. "
+                f"Neither DuckDB nor Neo4j could be initialized. "
+                f"DuckDB error: {e}"
+            )
+
     def _init_local_slm(self, config: GlobalSettings) -> LLMBase:
         """Initialize Local SLM if enabled."""
         if config.enable_local_slm:
@@ -168,9 +200,25 @@ class Memory(MemoryBase):
 
     def _init_default_context(self):
         """Initialize the Default Generic Context (Legacy logic)."""
-        writer = _MemoryWriter(self.embedding, self.vector_store, self.graph_store, self.llm)
+        writer = _MemoryWriter(
+            self.embedding,
+            self.vector_store,
+            self.graph_store,
+            self.llm,
+            conflict_strategy=self.config.conflict_strategy
+        )
         reader = _MemoryReader(self.embedding, self.vector_store, self.graph_store, self.local_slm)
-        lifecycle = _MemoryLifecycle(self.vector_store, self.graph_store)
+        lifecycle = _MemoryLifecycle(
+            self.vector_store,
+            self.graph_store,
+            decay_config={
+                "strategy": getattr(self.config, 'forgetting_strategy', 'hybrid'),
+                "half_life_days": getattr(self.config, 'forgetting_half_life_days', 30.0),
+                "min_confidence": getattr(self.config, 'forgetting_min_confidence', 0.1),
+                "access_boost": getattr(self.config, 'forgetting_access_boost', 0.05)
+            },
+            embedding=self.embedding
+        )
 
         self.default_context = GenericMemoryContext(
             writer=writer,
@@ -266,6 +314,18 @@ class Memory(MemoryBase):
         """Update default context."""
         # GenericContext update signature: update(memory_id, data)
         return self.default_context.update(memory_id, data)
+
+    def apply_decay(self, user_id: str) -> Dict[str, Any]:
+        """Apply confidence decay to all memories for a user."""
+        return self.default_context.apply_decay(user_id)
+
+    def cleanup_forgotten(self, user_id: str, dry_run: bool = False) -> Dict[str, Any]:
+        """Clean up long-forgotten memories for a user."""
+        return self.default_context.cleanup_forgotten(user_id, dry_run)
+
+    def boost_confidence(self, memory_id: str, boost: float = 0.05) -> bool:
+        """Boost confidence of a memory (e.g., when accessed)."""
+        return self.default_context.boost_confidence(memory_id, boost)
 
     def close(self) -> None:
         """Close all contexts."""

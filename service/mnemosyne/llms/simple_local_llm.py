@@ -29,14 +29,16 @@ class SimpleLocalLLM(LLMBase):
             base_url: API base URL (defaults to env var LOCAL_LLM_BASE_URL)
         """
         # Load from env if not provided
-        self.model_name = model_name or os.getenv("LOCAL_LLM_MODEL", "")
-        self.base_url = base_url or os.getenv("LOCAL_LLM_BASE_URL", "")
-        
+        # Prefer LOCAL_LLM_* vars, fall back to OPENAI_* vars
+        self.model_name = model_name or os.getenv("LOCAL_LLM_MODEL") or os.getenv("OPENAI_MODEL", "")
+        self.base_url = base_url or os.getenv("LOCAL_LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL", "")
+        self.api_key = os.getenv("LOCAL_LLM_API_KEY") or os.getenv("OPENAI_API_KEY", "EMPTY")
+
         if not self.base_url:
-            logger.warning("LOCAL_LLM_BASE_URL not set, using default")
-            
+            logger.warning("No LLM base URL set (LOCAL_LLM_BASE_URL or OPENAI_BASE_URL)")
+
         self.client = OpenAI(
-            api_key="EMPTY",  # Local models usually don't need key or accept any key
+            api_key=self.api_key,
             base_url=self.base_url,
         )
         logger.info(f"Initialized SimpleLocalLLM (Sync) with model={self.model_name} at {self.base_url}")
@@ -208,7 +210,7 @@ Does the new fact conflict with any existing facts?"""
             )
             
             result = self._parse_json(response)
-            if result.get("has_conflict"):
+            if result and result.get("has_conflict"):
                 return result
             return None
             
