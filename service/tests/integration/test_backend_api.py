@@ -1,7 +1,5 @@
 import pytest
 from starlette.testclient import TestClient
-import sys
-sys.path.insert(0, '/Users/yuanbaishu/pythonProject/memory-module/service')
 from mnemosyne.adapter.main import app
 
 @pytest.fixture

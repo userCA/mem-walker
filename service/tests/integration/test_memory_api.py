@@ -1,7 +1,5 @@
 import pytest
 from starlette.testclient import TestClient
-import sys
-sys.path.insert(0, '/Users/yuanbaishu/pythonProject/memory-module/service')
 from mnemosyne.adapter.main import app
 from mnemosyne.adapter.controller.memory_controller import get_memory_service
 from mnemosyne.adapter.controller.backend_controller import get_backend_service

@@ -1,10 +1,6 @@
 import unittest
-import sys
-from pathlib import Path
 import os
 from dotenv import load_dotenv
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from mnemosyne.embeddings import (
     FastEmbedEmbedding,

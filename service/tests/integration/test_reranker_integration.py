@@ -1,12 +1,8 @@
 """Test reranker implementations."""
 
 import os
-import sys
 import unittest
 from dotenv import load_dotenv
-
-# Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from mnemosyne.reranker import BM25Reranker, CrossEncoderReranker, RerankerConfig
 
