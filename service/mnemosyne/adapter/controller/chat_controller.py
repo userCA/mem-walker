@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from ..dto.common import ApiResponse, PaginatedResponse
 from ..dto.chat_dto import ChatSession, ChatConfig, SendMessageRequest, UpdateSessionRequest
-from ..exception.adapters import NotFoundError, FeatureNotImplementedError
 from ..service.chat_service import ChatService
+from ..exception.adapters import NotFoundError, FeatureNotImplementedError
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -123,7 +123,6 @@ async def regenerate_message(
     message_id: str,
     service: ChatService = Depends(get_chat_service)
 ):
-    """Regenerate assistant message — API contract reserved, currently not implemented."""
     raise FeatureNotImplementedError(
         "chat.messages.regenerate",
         message=f"Message regeneration is not implemented yet (session={session_id}, message={message_id})"

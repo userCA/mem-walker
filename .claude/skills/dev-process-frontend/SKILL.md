@@ -27,7 +27,7 @@ description: "mnemosyne 前端开发流程规范（React/TypeScript）—— dev
 
 **模式：** 前端 `web/src/api/` 定义了 API 函数，但后端 `adapter/router/` 没有对应路由。调用时 404 被 axios 拦截器捕获，用户看到的是模糊的 "请求失败"。
 
-**真实案例：** 前端 `chatApi` 定义了 `deleteMessage`、`clearSession`、`regenerateMessage` 三个端点函数，但后端 `chat_controller.py` 没有暴露这些路由。
+**真实案例：** 前端 `chatApi` 定义了 `deleteMessage`、`clearSession`、`regenerateMessage` 三个端点函数，但后端 `chat_controller.py` 没有暴露这些路由。**状态：✅ 已修复 (2026-05-31)。** 扩展检查发现共 8 个缺失端点：chat（updateSession、deleteSession、updateConfig、deleteMessage、clearMessages、regenerateMessage）、backend（updateConfig）、memory（batch）。已全部补齐或标记为 reserved。
 
 **检查清单：**
 - 前端 `web/src/api/memory.ts` 的每个导出函数 → grep 后端 `adapter/router/memory.py` 确认对应路由
@@ -80,10 +80,10 @@ export const memoryKeys = {
 
 **模式：** 组件和 hooks 中残留 `console.log()` 调试语句，生产环境控制台输出噪音。
 
-**真实案例：** `useChat.ts` 第 25-38 行有 `console.log` 调试语句。`ChatPanel.tsx` 组件中也有残留。
+**真实案例：** `useChat.ts` 第 25-38 行有 `console.log` 调试语句。`ChatPanel.tsx` 组件中也有残留。**状态：✅ 已修复 (2026-05-31)。** 清除 26 处：ChatPanel（11）、ChatMessage（6）、useChat（6）。`useUI.ts` 中 `console.warn` 改为 `console.error`（生产保留）。ChatMessage.tsx 组件中 `console.log` 打印完整 message 对象，可能泄露用户对话内容。
 
 **检查清单：**
-- 提交前 grep `console\.(log|debug|warn)` 在 `web/src/` 中
+- 提交前 grep `console\.(log|debug|warn)` 在 `web/src/` 中（注意 `console.error` 保留用于生产排查）
 - 如果确实需要日志，使用统一的 logger 工具（`web/src/lib/` 中定义）
 - 错误日志用 `console.error` 保留（用于生产排查）
 
@@ -189,16 +189,21 @@ export const useMemoryStore = create<MemoryStore>((set) => ({
 **模式：** 组件中硬编码颜色值（`#3b82f6`、`#ef4444`），与 `index.css` 中定义的 CSS 变量不一致。主题切换时这些硬编码颜色不会变化。
 
 **当前可用的设计令牌（参考 `web/src/index.css`）：**
-- `--accent`、`--focus-ring` — 主色调和焦点光圈
-- `--surface`、`--surface-soft` — 背景层级
-- `--hairline` — 边框颜色
-- `--text-primary`、`--text-secondary` — 文字层级
-- `--radius-sm`、`--radius-md` — 圆角
+- `--color-background` (`#faf9f7`) — 页面背景
+- `--color-card` (`#ffffff`) — 卡片/面板背景
+- `--color-text-primary` (`#1a1a1a`) — 主文字
+- `--color-text-secondary` (`#64748b`) — 次要文字
+- `--color-text-muted` (`#8b8680`) — 弱化文字
+- `--color-border` (`#e2ddd8`) — 边框
+- `--color-border-light` (`#f0eeeb`) — 轻边框
+- `--color-amber` (`#f59e0b`) — 主色调
+- `--color-amber-highlight` (`#fef3c7`) — 琥珀色高亮背景
+- `--color-success` (`#22c55e`) — 成功绿
 
 **检查清单：**
 - 新增 CSS 中颜色值必须是 `var(--xxx)` 引用，不是硬编码
 - 新增输入元素必须有统一的 `:focus` 样式：`border-color: var(--accent)` + `box-shadow: 0 0 0 3px var(--focus-ring)`
-- grep `#[0-9a-fA-F]{6}` 在 `web/src/components/` 的 `.css` 文件中 —— 应该极少
+- grep `#[0-9a-fA-F]{6}` 在 `web/src/` 的 `.tsx`/`.css` 文件中 —— 应该极少（inline style 和 CSS 中的硬编码 hex）
 
 ---
 

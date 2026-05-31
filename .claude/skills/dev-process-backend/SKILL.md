@@ -160,7 +160,7 @@ _log = logging.getLogger(__name__)
 
 **模式：** 前端 `api/` 目录定义了 API 函数，但后端 `router/` 没有对应端点。前端调用 404，错误被 catch 后静默吞掉。
 
-**真实案例：** 前端 `chatApi.deleteMessage`、`chatApi.clearSession` 已定义，但后端 `chat_controller.py` 没有对应路由。
+**真实案例：** 前端 `chatApi.deleteMessage`、`chatApi.clearSession` 已定义，但后端 `chat_controller.py` 没有对应路由。**状态：✅ 已修复 (2026-05-31)。** 扩展检查发现共 8 个缺失端点（chat 6、backend 1、memory 1），全部补齐。SessionStore 新增 `delete_message`、`clear_messages`、`get_message` 方法。
 
 **检查清单：**
 - 新增 API 端点：路由器（`adapter/router/`）→ 控制器（`adapter/controller/`）→ 服务（`adapter/service/`）→ DTO（`adapter/dto/`）全部到位

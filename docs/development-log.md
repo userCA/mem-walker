@@ -75,6 +75,7 @@ Chat messages 同时写入 SessionStore (SQLite, UI 展示) 和 Memory (mnemosyn
 
 - **05-14**: BM25 确定性哈希修复，去重哈希修复，Milvus flush 修复
 - **05-31**: 项目结构整合优化，dev-process skill 创建，mistake-log 和 development-log 初始化
+- **05-31**: 前端问题修复：清除 26 处 console.log，CSS 硬编码颜色替换为设计令牌，补全 8 个后端缺失端点（chat 6 + backend 1 + memory 1）
 
 ---
 
@@ -87,7 +88,7 @@ Chat messages 同时写入 SessionStore (SQLite, UI 展示) 和 Memory (mnemosyn
 | FAISSIndexManager 伪删除 → 定期重建索引 | 中 | 长期运行性能退化 |
 | LLMBase ISP 拆分（detect_conflicts 独立） | 中 | 接口膨胀 |
 | Milvus schema 迁移脚本 | 高 | 生产部署阻塞项 |
-| 前端缺失端点（deleteMessage, clearSession 等） | 中 | 后端需实现 |
+| 前端缺失端点（deleteMessage, clearSession 等） | ✅ 已修复 2026-05-31 | 新增 6 个 chat + 1 个 backend + 1 个 memory 路由 |
 | 测试覆盖率不足（BM25、去重、Milvus、Mapper） | 高 | 见 mistake-log 高频出错区域 |
 | BM25 IDF 持久化加载时机 | 低 | save/load 已实现，启动流程待优化 |
 

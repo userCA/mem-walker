@@ -142,7 +142,6 @@ async def batch_action(
     request: dict,
     service: MemoryService = Depends(get_memory_service)
 ):
-    """Batch memory actions — API contract reserved, currently not implemented."""
     raise FeatureNotImplementedError(
         "memories.batch",
         message=f"Batch operations are not implemented yet"
