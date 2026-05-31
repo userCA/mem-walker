@@ -110,11 +110,12 @@ class DuckDBGraphStore(GraphStoreBase):
         embedding: Optional[List[float]] = None,
     ) -> str:
         """Add an entity node."""
-        entity_type = properties.pop("type", "UNKNOWN")
+        props = properties.copy()
+        entity_type = props.pop("type", "UNKNOWN")
         if embedding:
-            properties["embedding"] = embedding
+            props["embedding"] = embedding
 
-        props_json = json.dumps(properties)
+        props_json = json.dumps(props)
         now = datetime.now()
 
         query = """
@@ -258,7 +259,8 @@ class DuckDBGraphStore(GraphStoreBase):
     ) -> List[Dict[str, Any]]:
         """Get neighboring entities."""
         if relation_types:
-            types_str = "', '".join([r.upper().replace(" ", "_") for r in relation_types])
+            types_list = [r.upper().replace(" ", "_") for r in relation_types]
+            placeholders = ', '.join([f'${i+2}' for i in range(len(types_list))])
             query = f"""
                 SELECT DISTINCT e.name, r.relation_type
                 FROM entities e
@@ -266,9 +268,9 @@ class DuckDBGraphStore(GraphStoreBase):
                     (r.source_id = (SELECT id FROM entities WHERE name = $1) AND e.id = r.target_id)
                     OR (r.target_id = (SELECT id FROM entities WHERE name = $1) AND e.id = r.source_id)
                 )
-                WHERE r.relation_type IN ('{types_str}')
+                WHERE r.relation_type IN ({placeholders})
             """
-            params = [entity]
+            params = [entity] + types_list
         else:
             query = """
                 SELECT DISTINCT e.name, r.relation_type
