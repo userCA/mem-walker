@@ -4,6 +4,7 @@ Implements Writer/Reader/Lifecycle components following facade pattern.
 """
 
 import hashlib
+import threading
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -91,6 +92,7 @@ class _MemoryWriter:
         self.llm = llm
         self.conflict_strategy = conflict_strategy
         self.bm25_calculator = bm25_calculator or BM25Calculator()
+        self._graph_lock = threading.Lock()
     
     def add(
         self,
@@ -272,44 +274,10 @@ class _MemoryWriter:
                 bm25_vectors=[bm25_vector]
             )
             
-            # Extract entities and build graph if infer enabled
+            # Defer entity extraction and graph building to background
             if infer:
-                logger.debug("Extracting entities for graph")
-                entities = self.llm.extract_entities(content)
-                
-                for entity_data in entities:
-                    entity_name = entity_data.get("entity")
-                    entity_type = entity_data.get("type", "UNKNOWN")
-                    
-                    if entity_name:
-                        # Add entity node
-                        self.graph_store.add_node(
-                            entity=entity_name,
-                            properties={"type": entity_type},
-                            user_id=user_id
-                        )
-                        
-                        # Add relationships
-                        relations = entity_data.get("relations", [])
-                        for rel in relations:
-                            target = rel.get("target")
-                            rel_type = rel.get("type", "RELATED_TO")
-                            
-                            if target:
-                                # Ensure target node exists
-                                self.graph_store.add_node(
-                                    entity=target,
-                                    properties={},
-                                    user_id=user_id
-                                )
-                                
-                                # Add relationship
-                                self.graph_store.add_relationship(
-                                    source=entity_name,
-                                    target=target,
-                                    relation_type=rel_type
-                                )
-            
+                self._defer_entity_extraction(content, user_id)
+
             logger.info(f"Added memory {memory_id} for user {user_id}")
             return memory_id
             
@@ -317,6 +285,44 @@ class _MemoryWriter:
             logger.error(f"Failed to add memory: {e}")
             raise MemoryError(f"Failed to add memory: {e}")
     
+    def _defer_entity_extraction(self, content: str, user_id: str) -> None:
+        """Extract entities and build graph in a background thread."""
+        graph_store = self.graph_store
+        llm = self.llm
+        graph_lock = self._graph_lock
+
+        def _run():
+            try:
+                entities = llm.extract_entities(content)
+                for entity_data in entities:
+                    entity_name = entity_data.get("entity")
+                    entity_type = entity_data.get("type", "UNKNOWN")
+                    if not entity_name:
+                        continue
+
+                    with graph_lock:
+                        graph_store.add_node(
+                            entity=entity_name,
+                            properties={"type": entity_type},
+                            user_id=user_id
+                        )
+                        for rel in entity_data.get("relations", []):
+                            target = rel.get("target")
+                            if target:
+                                graph_store.add_node(
+                                    entity=target, properties={}, user_id=user_id
+                                )
+                                graph_store.add_relationship(
+                                    source=entity_name,
+                                    target=target,
+                                    relation_type=rel.get("type", "RELATED_TO")
+                                )
+            except Exception as e:
+                logger.warning(f"Background entity extraction failed: {e}")
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+
     def add_batch(
         self,
         messages: List[str],
