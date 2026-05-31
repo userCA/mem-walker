@@ -107,8 +107,12 @@ class GenericMemoryContext(MemoryContext):
         result = self._reader.get(memory_id)
         return format_memory_result(result) if result else None
         
-    def get_all(self, user_id: str) -> List[Dict[str, Any]]:
-        results = self._reader.get_all(user_id)
+    def get_all(
+        self, user_id: str,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        results = self._reader.get_all(user_id, limit=limit, offset=offset)
         return [format_memory_result(r) for r in results]
 
     def delete(self, memory_id: str) -> bool:

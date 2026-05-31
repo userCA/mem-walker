@@ -432,6 +432,16 @@ class SQLiteVectorStore(VectorStoreBase):
             for row in rows
         ]
 
+    def count(self, filters: Optional[Dict[str, Any]] = None) -> int:
+        query = "SELECT COUNT(*) FROM memories WHERE is_deleted = 0"
+        params = []
+        if filters:
+            if "user_id" in filters:
+                query += " AND user_id = ?"
+                params.append(filters["user_id"])
+        with self._get_conn() as conn:
+            return conn.execute(query, params).fetchone()[0]
+
     def delete_collection(self) -> None:
         """Delete the entire collection."""
         with self._lock:

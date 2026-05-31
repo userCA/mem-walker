@@ -536,12 +536,17 @@ class _MemoryReader:
             logger.error(f"Failed to get memory {memory_id}: {e}")
             return None
     
-    def get_all(self, user_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_all(
+        self, user_id: str,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """Get all memories for a user."""
         try:
             results = self.vector_store.list(
                 filters={"user_id": user_id},
-                limit=limit
+                limit=limit,
+                offset=offset
             )
             
             logger.info(f"Retrieved {len(results)} memories for user {user_id}")

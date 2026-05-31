@@ -313,6 +313,18 @@ class Memory(MemoryBase):
         """Get all from default context."""
         return self.default_context.get_all(user_id)
 
+    def list(
+        self, user_id: str, limit: Optional[int] = None, offset: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """List memories with pagination from default context."""
+        return self.default_context.get_all(user_id, limit=limit, offset=offset)
+
+    def count(self, user_id: str) -> int:
+        """Count memories for a user."""
+        if hasattr(self.vector_store, 'count'):
+            return self.vector_store.count(filters={"user_id": user_id})
+        return len(self.get_all(user_id))
+
     def delete(self, memory_id: str) -> bool:
         """Delete from default context."""
         return self.default_context.delete(memory_id)

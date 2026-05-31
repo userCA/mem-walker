@@ -52,42 +52,48 @@ class MemoryService:
         return self._memory.delete(memory_id)
 
     async def list(self, user_id: str, page: int = 1, page_size: int = 20) -> tuple[List[MemoryDTO], int]:
-        all_memories = self._memory.get_all(user_id)
-        total = len(all_memories)
-        start = (page - 1) * page_size
-        end = start + page_size
-        items = [self._mapper.from_mnemosyne(m) for m in all_memories[start:end]]
+        offset = (page - 1) * page_size
+        memories = self._memory.list(user_id, limit=page_size, offset=offset)
+        total = self._memory.count(user_id)
+        items = [self._mapper.from_mnemosyne(m) for m in memories]
         return items, total
 
     async def get_stats(self, user_id: str) -> MemoryStats:
-        all_memories = self._memory.get_all(user_id)
-        total = len(all_memories)
-        by_status = {}
-        by_priority = {}
-        by_layer = {}
+        total = self._memory.count(user_id)
+        by_status: dict[str, int] = {}
+        by_priority: dict[str, int] = {}
+        by_layer: dict[str, int] = {}
         total_importance = 0
         total_confidence = 0.0
         by_confidence_range = {"high": 0, "medium": 0, "low": 0}
 
-        for m in all_memories:
-            metadata = m.get("metadata", {})
-            status = metadata.get("status", "active")
-            priority = metadata.get("priority", "medium")
-            layer = metadata.get("layer", "semantic")
-            confidence = metadata.get("confidence", 0.8)
+        batch_size = 500
+        offset = 0
+        while True:
+            batch = self._memory.list(user_id, limit=batch_size, offset=offset)
+            if not batch:
+                break
+            offset += len(batch)
 
-            by_status[status] = by_status.get(status, 0) + 1
-            by_priority[priority] = by_priority.get(priority, 0) + 1
-            by_layer[layer] = by_layer.get(layer, 0) + 1
-            total_importance += metadata.get("importance", 3)
-            total_confidence += confidence
+            for m in batch:
+                metadata = m.get("metadata", {})
+                status = metadata.get("status", "active")
+                priority = metadata.get("priority", "medium")
+                layer = metadata.get("layer", "semantic")
+                confidence = metadata.get("confidence", 0.8)
 
-            if confidence >= 0.7:
-                by_confidence_range["high"] += 1
-            elif confidence >= 0.3:
-                by_confidence_range["medium"] += 1
-            else:
-                by_confidence_range["low"] += 1
+                by_status[status] = by_status.get(status, 0) + 1
+                by_priority[priority] = by_priority.get(priority, 0) + 1
+                by_layer[layer] = by_layer.get(layer, 0) + 1
+                total_importance += metadata.get("importance", 3)
+                total_confidence += confidence
+
+                if confidence >= 0.7:
+                    by_confidence_range["high"] += 1
+                elif confidence >= 0.3:
+                    by_confidence_range["medium"] += 1
+                else:
+                    by_confidence_range["low"] += 1
 
         return MemoryStats(
             total=total,
@@ -113,34 +119,44 @@ class MemoryService:
 
     async def get_tags(self, user_id: str) -> List[dict]:
         """Get all unique tags with their counts."""
-        all_memories = self._memory.get_all(user_id)
         tag_counts: dict[str, dict] = {}
-
-        for m in all_memories:
-            metadata = m.get("metadata", {})
-            for tag in metadata.get("tags", []):
-                tag_name = tag.get("name", "unknown")
-                if tag_name not in tag_counts:
-                    tag_counts[tag_name] = {
-                        "id": tag.get("id", tag_name),
-                        "name": tag_name,
-                        "color": tag.get("color"),
-                        "count": 0
-                    }
-                tag_counts[tag_name]["count"] += 1
+        batch_size = 500
+        offset = 0
+        while True:
+            batch = self._memory.list(user_id, limit=batch_size, offset=offset)
+            if not batch:
+                break
+            offset += len(batch)
+            for m in batch:
+                metadata = m.get("metadata", {})
+                for tag in metadata.get("tags", []):
+                    tag_name = tag.get("name", "unknown")
+                    if tag_name not in tag_counts:
+                        tag_counts[tag_name] = {
+                            "id": tag.get("id", tag_name),
+                            "name": tag_name,
+                            "color": tag.get("color"),
+                            "count": 0
+                        }
+                    tag_counts[tag_name]["count"] += 1
 
         return list(tag_counts.values())
 
     async def get_layers(self, user_id: str) -> List[dict]:
         """Get all layers with their counts and percentages."""
-        all_memories = self._memory.get_all(user_id)
-        total = len(all_memories)
         layer_counts: dict[str, int] = {}
-
-        for m in all_memories:
-            metadata = m.get("metadata", {})
-            layer = metadata.get("layer", "semantic")
-            layer_counts[layer] = layer_counts.get(layer, 0) + 1
+        total = self._memory.count(user_id)
+        batch_size = 500
+        offset = 0
+        while True:
+            batch = self._memory.list(user_id, limit=batch_size, offset=offset)
+            if not batch:
+                break
+            offset += len(batch)
+            for m in batch:
+                metadata = m.get("metadata", {})
+                layer = metadata.get("layer", "semantic")
+                layer_counts[layer] = layer_counts.get(layer, 0) + 1
 
         return [
             {
