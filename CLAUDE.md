@@ -238,10 +238,13 @@ cat evaluation/baselines/.baseline.json
 # 3. 查看最近提交 / Check recent commits
 git log --oneline -10
 
-# 4. 查看评估报告 / Check evaluation report
+# 4. 查看错误日志 / Check mistake log
+cat docs/mistake-log.md 2>/dev/null || echo "No mistake log yet"
+
+# 5. 查看评估报告 / Check evaluation report
 cat evaluation/reports/latest.json 2>/dev/null || echo "No report yet"
 
-# 5. 查看工作日志 / Check worklogs (重要!)
+# 6. 查看工作日志 / Check worklogs (重要!)
 ls -la evaluation/worklogs/
 cat evaluation/worklogs/$(ls -t evaluation/worklogs/ | head -1)
 ```
