@@ -55,9 +55,9 @@ class MilvusVectorStore(VectorStoreBase):
         """
         Initialize or load collection.
 
-        WARNING: If an existing collection lacks the user_id partition key,
-        this method will DROP and RECREATE the collection, destroying all data.
-        This is a destructive migration operation.
+        If an existing collection lacks the user_id partition key, the collection
+        must be rebuilt. This is a destructive operation that will DROP all data.
+        To prevent accidental data loss, set force_rebuild=True explicitly.
         """
         collection_name = self.config.collection_name
 
@@ -65,11 +65,15 @@ class MilvusVectorStore(VectorStoreBase):
             logger.info(f"Loading existing collection: {collection_name}")
             self.collection = Collection(collection_name)
 
-            # Check if rebuild is needed (missing partition key)
             if self._needs_rebuild():
-                logger.warning(
-                    f"Collection {collection_name} lacks user_id partition key, "
-                    "rebuilding collection to enable partition-based routing..."
+                if not getattr(self.config, 'force_rebuild', False):
+                    raise VectorStoreError(
+                        f"Collection '{collection_name}' lacks user_id partition key. "
+                        "Set force_rebuild=True in MilvusConfig to rebuild and DROP all data."
+                    )
+                logger.error(
+                    f"DESTRUCTIVE: dropping collection {collection_name} for rebuild. "
+                    "All data will be lost."
                 )
                 utility.drop_collection(collection_name)
                 self.create_collection(
@@ -240,20 +244,16 @@ class MilvusVectorStore(VectorStoreBase):
         """
         Check if collection needs rebuild (missing partition key).
 
-        Returns True if the existing collection lacks the user_id partition key
-        and needs to be rebuilt.
+        Returns True only if the schema is confirmed to lack the user_id partition key.
+        Raises on unexpected errors instead of assuming rebuild needed.
         """
         if self.collection is None:
             return False
 
-        try:
-            for field in self.collection.schema.fields:
-                if field.name == "user_id" and field.is_partition_key:
-                    return False  # Has partition key, no rebuild needed
-            return True  # Missing partition key
-        except Exception as e:
-            logger.warning(f"Failed to check partition key status: {e}")
-            return True  # Assume rebuild needed on error
+        for field in self.collection.schema.fields:
+            if field.name == "user_id" and field.is_partition_key:
+                return False
+        return True
 
     def insert(
         self,

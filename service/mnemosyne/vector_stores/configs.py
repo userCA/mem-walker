@@ -25,7 +25,8 @@ class MilvusConfig(VectorStoreConfig):
     port: int = 19530
     user: Optional[str] = None
     password: Optional[str] = None
-    
+    force_rebuild: bool = False
+
     # HNSW index parameters
     index_params: dict = None
 
