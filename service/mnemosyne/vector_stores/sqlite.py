@@ -381,13 +381,15 @@ class SQLiteVectorStore(VectorStoreBase):
     def list(
         self,
         filters: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
+        offset: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """List all vectors matching filters.
 
         Args:
             filters: Optional metadata filters
             limit: Optional limit on results
+            offset: Optional offset for pagination
 
         Returns:
             List of vectors with payloads
@@ -409,6 +411,10 @@ class SQLiteVectorStore(VectorStoreBase):
         if limit:
             query += " LIMIT ?"
             params.append(limit)
+
+        if offset:
+            query += " OFFSET ?"
+            params.append(offset)
 
         with self._get_conn() as conn:
             conn.row_factory = sqlite3.Row

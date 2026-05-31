@@ -668,62 +668,64 @@ class _MemoryLifecycle:
         )
 
         try:
-            memories = self.vector_store.list(
-                filters={"user_id": user_id},
-                limit=None
-            )
-
             decayed_count = 0
             forgotten_count = 0
+            total_checked = 0
             strategy = self.decay_config.get("strategy", "hybrid")
             half_life = self.decay_config.get("half_life_days", 30.0)
             min_conf = self.decay_config.get("min_confidence", 0.1)
             access_boost = self.decay_config.get("access_boost", 0.05)
+            batch_size = 500
+            offset = 0
 
-            for memory in memories:
-                memory_id = memory.get("id")
-                metadata = memory.get("metadata", {})
+            while True:
+                batch = self.vector_store.list(
+                    filters={"user_id": user_id},
+                    limit=batch_size,
+                    offset=offset
+                )
+                if not batch:
+                    break
+                total_checked += len(batch)
+                offset += len(batch)
 
-                # Get current confidence and timestamps
-                current_conf = metadata.get("confidence", 0.8)
-                created_at = metadata.get("timestamp", int(time.time()))
-                access_count = metadata.get("access_count", 0)
-                last_accessed = metadata.get("last_accessed_at")
+                for memory in batch:
+                    memory_id = memory.get("id")
+                    metadata = memory.get("metadata", {})
 
-                # Calculate decayed confidence based on strategy
-                if strategy == "time_decay":
-                    new_conf = calculate_time_decayed_confidence(
-                        current_conf, created_at, half_life, min_conf
-                    )
-                elif strategy == "access_decay":
-                    new_conf = calculate_access_decayed_confidence(
-                        current_conf, access_count, last_accessed,
-                        access_boost, half_life, min_conf
-                    )
-                else:  # hybrid or default
-                    new_conf = calculate_hybrid_confidence(
-                        current_conf, created_at, access_count,
-                        last_accessed, half_life, min_conf, access_boost
-                    )
+                    current_conf = metadata.get("confidence", 0.8)
+                    created_at = metadata.get("timestamp", int(time.time()))
+                    access_count = metadata.get("access_count", 0)
+                    last_accessed = metadata.get("last_accessed_at")
 
-                # Update metadata if confidence changed
-                if new_conf != current_conf:
-                    metadata["confidence"] = round(new_conf, 4)
-                    metadata["decayed_at"] = int(time.time())
+                    if strategy == "time_decay":
+                        new_conf = calculate_time_decayed_confidence(
+                            current_conf, created_at, half_life, min_conf
+                        )
+                    elif strategy == "access_decay":
+                        new_conf = calculate_access_decayed_confidence(
+                            current_conf, access_count, last_accessed,
+                            access_boost, half_life, min_conf
+                        )
+                    else:
+                        new_conf = calculate_hybrid_confidence(
+                            current_conf, created_at, access_count,
+                            last_accessed, half_life, min_conf, access_boost
+                        )
 
-                    # Update in vector store
-                    if self._update_memory_payload(memory_id, memory):
-                        decayed_count += 1
+                    if new_conf != current_conf:
+                        metadata["confidence"] = round(new_conf, 4)
+                        metadata["decayed_at"] = int(time.time())
+                        if self._update_memory_payload(memory_id, memory):
+                            decayed_count += 1
 
-                # Check if memory should be forgotten (archived/deleted)
-                if new_conf <= min_conf:
-                    metadata["status"] = "archived"
-                    metadata["forgotten_at"] = int(time.time())
-                    metadata["forget_reason"] = "confidence_below_threshold"
-
-                    if self._update_memory_payload(memory_id, memory):
-                        forgotten_count += 1
-                        logger.info(f"Memory {memory_id} forgotten (confidence: {new_conf:.4f})")
+                    if new_conf <= min_conf:
+                        metadata["status"] = "archived"
+                        metadata["forgotten_at"] = int(time.time())
+                        metadata["forget_reason"] = "confidence_below_threshold"
+                        if self._update_memory_payload(memory_id, memory):
+                            forgotten_count += 1
+                            logger.info(f"Memory {memory_id} forgotten ({new_conf:.4f})")
 
             logger.info(
                 f"Decay applied to {decayed_count} memories, "
@@ -734,7 +736,7 @@ class _MemoryLifecycle:
                 "decayed_count": decayed_count,
                 "forgotten_count": forgotten_count,
                 "strategy": strategy,
-                "total_checked": len(memories)
+                "total_checked": total_checked
             }
 
         except Exception as e:
@@ -753,34 +755,42 @@ class _MemoryLifecycle:
             Dict with cleanup statistics
         """
         try:
-            memories = self.vector_store.list(
-                filters={"user_id": user_id},
-                limit=None
-            )
-
             current_time = int(time.time())
-            cleanup_threshold_days = 7  # Delete after 7 days of being forgotten
+            cleanup_threshold_days = 7
             cleanup_threshold = cleanup_threshold_days * 24 * 3600
+            cleaned_count = 0
+            batch_size = 500
+            offset = 0
 
-            to_cleanup = []
+            while True:
+                batch = self.vector_store.list(
+                    filters={"user_id": user_id},
+                    limit=batch_size,
+                    offset=offset
+                )
+                if not batch:
+                    break
+                offset += len(batch)
 
-            for memory in memories:
-                metadata = memory.get("metadata", {})
-                forgotten_at = metadata.get("forgotten_at")
+                for memory in batch:
+                    metadata = memory.get("metadata", {})
+                    forgotten_at = metadata.get("forgotten_at")
+                    if not forgotten_at:
+                        continue
+                    if (current_time - forgotten_at) <= cleanup_threshold:
+                        continue
 
-                if forgotten_at and (current_time - forgotten_at) > cleanup_threshold:
-                    to_cleanup.append(memory.get("id"))
-
-            if not dry_run:
-                for memory_id in to_cleanup:
-                    self.vector_store.delete(memory_id)
+                    memory_id = memory.get("id")
+                    if not dry_run:
+                        self.vector_store.delete(memory_id)
+                    cleaned_count += 1
 
             logger.info(
-                f"Cleaned up {len(to_cleanup)} forgotten memories for user {user_id}"
+                f"Cleaned up {cleaned_count} forgotten memories for user {user_id}"
             )
 
             return {
-                "cleaned_count": len(to_cleanup),
+                "cleaned_count": cleaned_count,
                 "dry_run": dry_run,
                 "threshold_days": cleanup_threshold_days
             }
