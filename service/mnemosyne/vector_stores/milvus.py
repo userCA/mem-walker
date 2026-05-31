@@ -1,5 +1,6 @@
 """Milvus vector store implementation."""
 
+import hashlib
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -544,8 +545,7 @@ class MilvusVectorStore(VectorStoreBase):
         max_freq = max(term_freq.values()) if term_freq else 1
         sparse = {}
         for term, freq in term_freq.items():
-            # Use hash to map term to index (simplified)
-            term_hash = hash(term) % 10000
+            term_hash = int(hashlib.md5(term.encode()).hexdigest(), 16) % 10000
             tf = freq / max_freq
             sparse[term_hash] = tf
 

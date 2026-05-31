@@ -1,20 +1,4 @@
 {
-  "enableAllProjectMcpServers": true,
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd /Users/yuanbaishu/pythonProject/memory-module && PYTHONPATH=service python -m pytest tests/ -q --tb=short --override-ini=\"addopts=\" 2>&1 | tail -5",
-            "timeout": 120,
-            "statusMessage": "Running tests..."
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
       "Bash(/Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python -c:*)",
@@ -68,9 +52,26 @@
       "Bash(PYTHONPATH=/Users/yuanbaishu/pythonProject/memory-module/service /Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/python:*)",
       "Bash(PYTHONPATH=/Users/yuanbaishu/pythonProject/memory-module/service /Users/yuanbaishu/pythonProject/memory-module/.venv-milvus/bin/uvicorn:*)",
       "Bash(npx:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git checkout *)"
     ],
     "deny": [],
     "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/yuanbaishu/pythonProject/memory-module && PYTHONPATH=service python -m pytest tests/ -q --tb=short --override-ini=\"addopts=\" 2>&1 | tail -5",
+            "timeout": 120,
+            "statusMessage": "Running tests..."
+          }
+        ]
+      }
+    ]
   }
 }
