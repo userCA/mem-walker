@@ -17,14 +17,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const isUser = message.role === 'user'
   const isAssistant = message.role === 'assistant'
 
-  // Debug logging
-  console.log('=== ChatMessage render ===')
-  console.log('message.id:', message.id)
-  console.log('message.role:', message.role)
-  console.log('message.content:', JSON.stringify(message.content))
-  console.log('message.status:', message.status)
-  console.log('message:', message)
-
   return (
     <div
       className={cn(

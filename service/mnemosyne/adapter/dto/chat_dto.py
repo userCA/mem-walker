@@ -35,3 +35,8 @@ class ChatConfig(BaseModel):
 class SendMessageRequest(BaseModel):
     content: str
     config: Optional[dict] = None
+
+class UpdateSessionRequest(BaseModel):
+    title: Optional[str] = None
+    isPinned: Optional[bool] = None
+    isExpanded: Optional[bool] = None

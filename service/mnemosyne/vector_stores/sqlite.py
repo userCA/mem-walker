@@ -4,6 +4,7 @@ A local vector storage solution using SQLite for metadata and FAISS for vector i
 Provides zero-dependency local storage with ACID guarantees.
 """
 
+import contextlib
 import json
 import os
 import shutil
@@ -11,7 +12,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 import numpy as np
 
@@ -61,13 +62,14 @@ class SQLiteVectorStore(VectorStoreBase):
             self.faiss_manager = FAISSIndexManager(index_dir)
 
         self._lock = threading.Lock()
+        self._conn: sqlite3.Connection = None
 
         self._init_db()
         logger.info(f"Initialized SQLiteVectorStore at {db_path}")
 
     def _init_db(self) -> None:
         """Initialize database schema."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_conn() as conn:
             conn.row_factory = sqlite3.Row
 
             # Enable WAL mode for better concurrency
@@ -98,6 +100,19 @@ class SQLiteVectorStore(VectorStoreBase):
             conn.execute("CREATE INDEX IF NOT EXISTS idx_is_deleted ON memories(is_deleted)")
 
             conn.commit()
+
+    @contextlib.contextmanager
+    def _get_conn(self) -> Generator[sqlite3.Connection, None, None]:
+        """Get persistent database connection (reuses single connection)."""
+        if self._conn is None:
+            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self._conn.row_factory = sqlite3.Row
+        try:
+            yield self._conn
+            self._conn.commit()
+        except Exception:
+            self._conn.rollback()
+            raise
 
     def _enable_wal_mode(self, conn: sqlite3.Connection) -> None:
         """Enable WAL mode on a connection."""
@@ -139,8 +154,8 @@ class SQLiteVectorStore(VectorStoreBase):
         timestamp = int(time.time())
 
         with self._lock:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
+            with self._get_conn() as conn:
+
 
                 for i, (vec_id, vector) in enumerate(zip(ids, vectors)):
                     payload = payloads[i] if payloads else {}
@@ -206,8 +221,8 @@ class SQLiteVectorStore(VectorStoreBase):
 
             # Fetch from SQLite
             placeholders = ','.join('?' * len(candidate_ids))
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
+            with self._get_conn() as conn:
+
                 cursor = conn.execute(f"""
                     SELECT * FROM memories
                     WHERE id IN ({placeholders}) AND is_deleted = 0
@@ -238,7 +253,7 @@ class SQLiteVectorStore(VectorStoreBase):
 
     def _sqlite_fallback_search(self, user_id: str, limit: int) -> List[Dict[str, Any]]:
         """Fallback search using SQLite LIKE (for when FAISS is disabled)."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_conn() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute("""
                 SELECT * FROM memories
@@ -270,7 +285,7 @@ class SQLiteVectorStore(VectorStoreBase):
             True if deleted successfully
         """
         with self._lock:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 # Soft delete in SQLite
                 conn.execute("UPDATE memories SET is_deleted = 1 WHERE id = ?", (vector_id,))
                 conn.commit()
@@ -307,7 +322,7 @@ class SQLiteVectorStore(VectorStoreBase):
 
         timestamp = int(time.time())
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_conn() as conn:
             update_fields = []
             update_values = []
 
@@ -343,7 +358,7 @@ class SQLiteVectorStore(VectorStoreBase):
         Returns:
             Vector data with payload or None if not found
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_conn() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 "SELECT * FROM memories WHERE id = ? AND is_deleted = 0",
@@ -395,7 +410,7 @@ class SQLiteVectorStore(VectorStoreBase):
             query += " LIMIT ?"
             params.append(limit)
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_conn() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(query, params)
             rows = cursor.fetchall()
@@ -434,7 +449,7 @@ class SQLiteVectorStore(VectorStoreBase):
         Returns:
             Collection metadata and statistics
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_conn() as conn:
             cursor = conn.execute("SELECT COUNT(*) as count FROM memories WHERE is_deleted = 0")
             count = cursor.fetchone()[0]
 
@@ -455,6 +470,9 @@ class SQLiteVectorStore(VectorStoreBase):
         """Close connections and save indices."""
         if self.use_faiss:
             self.faiss_manager.save_all_indices()
+        if self._conn:
+            self._conn.close()
+            self._conn = None
         logger.debug("SQLiteVectorStore closed")
 
     def get_by_user(self, user_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -479,7 +497,7 @@ class SQLiteVectorStore(VectorStoreBase):
         Returns:
             True if exists
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_conn() as conn:
             cursor = conn.execute(
                 "SELECT 1 FROM memories WHERE content_hash = ? AND user_id = ? AND is_deleted = 0",
                 (content_hash, user_id)

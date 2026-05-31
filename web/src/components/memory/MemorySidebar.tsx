@@ -7,10 +7,10 @@ import { cn } from '@/lib/cn'
 import type { MemoryStatus } from '@/types'
 
 const layerColors: Record<string, string> = {
-  semantic: '#8b5cf6',
-  episodic: '#3b82f6',
-  procedural: '#10b981',
-  working: '#f97316',
+  semantic: 'var(--color-layer-semantic, #8b5cf6)',
+  episodic: 'var(--color-layer-episodic, #3b82f6)',
+  procedural: 'var(--color-layer-procedural, #10b981)',
+  working: 'var(--color-layer-working, #f97316)',
 }
 
 export const MemorySidebar: React.FC = () => {
@@ -118,7 +118,7 @@ export const MemorySidebar: React.FC = () => {
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${layer.percentage}%`, backgroundColor: layerColors[layer.layer] || '#f59e0b' }}
+                    style={{ width: `${layer.percentage}%`, backgroundColor: layerColors[layer.layer] || 'var(--color-amber)' }}
                   />
                 </div>
               </div>

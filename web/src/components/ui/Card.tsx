@@ -19,9 +19,9 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
           className
         )}
         style={selected ? {
-          borderColor: '#f59e0b',
+          borderColor: 'var(--color-amber)',
           boxShadow: '0 2px 8px rgba(245, 158, 11, 0.15)',
-          background: 'linear-gradient(135deg, #fffbf0 0%, #ffffff 100%)',
+          background: 'linear-gradient(135deg, var(--color-amber-highlight) 0%, var(--color-card) 100%)',
         } : undefined}
         {...props}
       >

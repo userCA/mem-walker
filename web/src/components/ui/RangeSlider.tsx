@@ -53,7 +53,7 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
           onChange={(e) => onChange(Number(e.target.value))}
           className="w-full h-1 bg-border-light rounded-full appearance-none cursor-pointer"
           style={{
-            background: `linear-gradient(to right, #f59e0b 0%, #f59e0b ${percentage}%, #e2ddd8 ${percentage}%, #e2ddd8 100%)`,
+            background: `linear-gradient(to right, var(--color-amber) 0%, var(--color-amber) ${percentage}%, var(--color-border) ${percentage}%, var(--color-border) 100%)`,
           }}
         />
       </div>

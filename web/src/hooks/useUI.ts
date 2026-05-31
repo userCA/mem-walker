@@ -51,7 +51,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         const valueToStore = value instanceof Function ? value(getValue()) : value
         window.localStorage.setItem(key, JSON.stringify(valueToStore))
       } catch (error) {
-        console.warn(`Failed to set localStorage key "${key}":`, error)
+        console.error(`Failed to set localStorage key "${key}":`, error)
       }
     },
     [key, getValue]
@@ -61,7 +61,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     try {
       window.localStorage.removeItem(key)
     } catch (error) {
-      console.warn(`Failed to remove localStorage key "${key}":`, error)
+      console.error(`Failed to remove localStorage key "${key}":`, error)
     }
   }, [key])
 

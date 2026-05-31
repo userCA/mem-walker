@@ -26,12 +26,7 @@ export function useChatSession(id: string) {
   return useQuery({
     queryKey: chatKeys.session(id),
     queryFn: () => {
-      console.log('=== useChatSession fetching ===')
-      console.log('Session ID:', id)
       return chatApi.getSession(id).then((res) => {
-        console.log('Session API response:', res)
-        console.log('Session data:', res.data)
-        console.log('Messages in session:', res.data?.messages)
         return res.data!
       })
     },
@@ -105,17 +100,9 @@ export function useSendChatMessage() {
   return useMutation({
     mutationFn: ({ sessionId, content, config }: { sessionId: string; content: string; config?: Partial<ChatConfig> }) =>
       chatApi.sendMessage(sessionId, content, config),
-    onSuccess: (response, { sessionId }) => {
-      console.log('=== useSendChatMessage onSuccess ===')
-      console.log('Response:', response)
-      console.log('sessionId:', sessionId)
-
-      // 直接使对应的 session query 失效，强制重新获取最新数据
+    onSuccess: (_response, { sessionId }) => {
       queryClient.invalidateQueries({ queryKey: chatKeys.session(sessionId) })
-      // 同时使 sessions list 失效
       queryClient.invalidateQueries({ queryKey: chatKeys.sessions() })
-
-      console.log('Message sent successfully, query invalidated')
     },
     onError: (error) => {
       console.error('Send message error:', error)
