@@ -26,6 +26,7 @@ from .base import MemoryBase
 from .contexts.file import FileMemoryContext
 from .storage import _MemoryLifecycle, _MemoryReader, _MemoryWriter
 from .utils import format_memory_result
+from .bm25_calculator import BM25Calculator
 
 # Contexts
 from .contexts.base import MemoryContext
@@ -200,14 +201,19 @@ class Memory(MemoryBase):
 
     def _init_default_context(self):
         """Initialize the Default Generic Context (Legacy logic)."""
+        bm25_calculator = BM25Calculator()
         writer = _MemoryWriter(
             self.embedding,
             self.vector_store,
             self.graph_store,
             self.llm,
-            conflict_strategy=self.config.conflict_strategy
+            conflict_strategy=self.config.conflict_strategy,
+            bm25_calculator=bm25_calculator
         )
-        reader = _MemoryReader(self.embedding, self.vector_store, self.graph_store, self.local_slm)
+        reader = _MemoryReader(
+            self.embedding, self.vector_store, self.graph_store, self.local_slm,
+            bm25_calculator=bm25_calculator
+        )
         lifecycle = _MemoryLifecycle(
             self.vector_store,
             self.graph_store,

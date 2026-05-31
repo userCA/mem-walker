@@ -82,14 +82,15 @@ class _MemoryWriter:
         vector_store: VectorStoreBase,
         graph_store: GraphStoreBase,
         llm: LLMBase,
-        conflict_strategy: str = STRATEGY_NEWER_WINS
+        conflict_strategy: str = STRATEGY_NEWER_WINS,
+        bm25_calculator: Optional[BM25Calculator] = None
     ):
         self.embedding = embedding
         self.vector_store = vector_store
         self.graph_store = graph_store
         self.llm = llm
         self.conflict_strategy = conflict_strategy
-        self.bm25_calculator = BM25Calculator()
+        self.bm25_calculator = bm25_calculator or BM25Calculator()
     
     def add(
         self,
@@ -115,7 +116,6 @@ class _MemoryWriter:
             
             # --- Phase 1: Pre-inference Deduplication (Fast) ---
             # 1.1 Hash Deduplication
-            import hashlib
             content_hash = hashlib.md5(messages.strip().encode('utf-8')).hexdigest()
             
             existing = self.vector_store.list(
@@ -375,13 +375,14 @@ class _MemoryReader:
         embedding: EmbeddingBase,
         vector_store: VectorStoreBase,
         graph_store: GraphStoreBase,
-        llm: LLMBase
+        llm: LLMBase,
+        bm25_calculator: Optional[BM25Calculator] = None
     ):
         self.embedding = embedding
         self.vector_store = vector_store
         self.graph_store = graph_store
         self.llm = llm
-        self.bm25_calculator = BM25Calculator()
+        self.bm25_calculator = bm25_calculator or BM25Calculator()
     
     def search(
         self,
