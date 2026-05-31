@@ -22,21 +22,14 @@ class ProfileMilvusVectorStore(MilvusVectorStore):
     """
 
     def __init__(self, config: Optional[MilvusConfig] = None):
-        """Initialize with custom collection name."""
+        """Initialize with custom collection name and shared Milvus config."""
         if config is None:
             config = MilvusConfig()
-        
-        # Override collection name for Profile KB
-        # NOTE: We modify the config object copy or ensure it doesn't affect global if shared.
-        # Ideally we should pass collection_name to super, but super uses config.collection_name.
-        # We'll set it here before calling super().__init__ if possible, or just re-init collection after.
-        
-        # Strategy: Let super connect, then we handle collection creation if needed with OUR name.
-        # But super calls _init_collection() in __init__.
-        # So we should modify config.collection_name BEFORE calling super().__init__
-        
-        config.collection_name = "user_profile_knowledge_base" 
-        super().__init__(config)
+        # Copy config to avoid mutating shared config object
+        import copy
+        profile_config = copy.deepcopy(config)
+        profile_config.collection_name = "user_profile_knowledge_base"
+        super().__init__(profile_config)
 
     def _init_collection(self) -> None:
         """Override to ensure our specific schema is used."""

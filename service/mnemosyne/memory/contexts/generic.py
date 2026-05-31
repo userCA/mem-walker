@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional
 
 from ...configs import GlobalSettings
+from ...embeddings.base import EmbeddingBase
 from ...utils import get_logger
 from ..base import MemoryBase
 from ..storage import _MemoryLifecycle, _MemoryReader, _MemoryWriter
@@ -14,28 +15,26 @@ logger = get_logger(__name__)
 class GenericMemoryContext(MemoryContext):
     """
     Generic Memory Context.
-    
+
     Implements the standard functionality of Mnemosyne (Fact/Experience memory),
     wrapping the _Writer, _Reader, and _Lifecycle components.
     """
-    
+
     def __init__(
         self,
         writer: _MemoryWriter,
         reader: _MemoryReader,
         lifecycle: _MemoryLifecycle,
         config: GlobalSettings,
-        reranker=None
+        reranker=None,
+        embedding: Optional[EmbeddingBase] = None
     ):
-        """
-        Initialize Generic Context with pre-initialized components.
-        dependencies are injected from the main Memory class.
-        """
         self._writer = writer
         self._reader = reader
         self._lifecycle = lifecycle
         self.config = config
         self.reranker = reranker
+        self._embedding = embedding
         
     def add(
         self,
@@ -116,25 +115,8 @@ class GenericMemoryContext(MemoryContext):
         return self._lifecycle.delete(memory_id)
         
     def update(self, memory_id: str, data: Any, **kwargs) -> Dict[str, Any]:
-        """
-        Update memory content.
-        Needs embedding provided (handled by lifecycle if passed in constructor logic,
-        but lifecycle.update takes embedding arg.
-
-        Wait, lifecycle.update signature: update(memory_id, new_content, embedding_model)
-        GenericMemoryContext implementation issues: it needs access to embedding model to pass to lifecycle.
-
-        Refactoring Notice:
-        Main Memory class had `self.embedding`. GenericContext was initialized without it in my constructor above?
-        Checking constructor... I passed writer, reader, lifecycle.
-        _MemoryLifecycle needs embedding for update.
-        I should add embedding to constructor or make sure lifecycle has it.
-        Existing _MemoryLifecycle definition in storage.py:
-        def update(..., embedding: EmbeddingBase)
-
-        So GenericContext needs to hold reference to embedding model too.
-        """
-        updated = self._lifecycle.update(memory_id, data, self._writer.embedding)
+        embedding = self._embedding or self._writer.embedding
+        updated = self._lifecycle.update(memory_id, data, embedding)
         if updated:
             return self.get(memory_id) or {}
         return {}

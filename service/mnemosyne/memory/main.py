@@ -231,7 +231,8 @@ class Memory(MemoryBase):
             reader=reader,
             lifecycle=lifecycle,
             config=self.config,
-            reranker=self.reranker
+            reranker=self.reranker,
+            embedding=self.embedding
         )
         self.contexts["default"] = self.default_context
 

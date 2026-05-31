@@ -76,29 +76,14 @@ class ProfileMemoryContext(MemoryContext):
         )
 
     def get(self, memory_id: str) -> Optional[Dict[str, Any]]:
-        # ProfileKBManager doesn't expose strict get by ID yet in high level API,
-        # but VectorStore has it. 
-        # Refactoring opportunity: Expose get in Manager or access vector store directly.
-        # Ideally Facade should provide it.
-        # For now, let's delegate or raise NotImplemented if strictly not supported by Manager facade.
-        # Actually Manager acts as facade. Let's see if Manager has get.
-        # Manager has query_memory. 
-        # But we can access self.manager.vector_store.get(memory_id) if we really want.
-        
-        # Let's assume for now we implement it if manager exposes it, otherwise simple wrapper.
-        pass
+        return self.manager.vector_store.get(memory_id)
 
     def delete(self, memory_id: str) -> bool:
-        # Similar to get, Manager facade needs to expose delete.
-        # Currently Manager doesn't expose delete explicitly.
-        # But VectorStore does.
-        # We can call self.manager.vector_store.delete(memory_id)
-        # But this breaks encapsulation slightly. Optimally Manager should have delete.
-        pass
+        return self.manager.vector_store.delete(memory_id)
 
     def update(self, memory_id: str, data: Any, **kwargs) -> Dict[str, Any]:
-        # Not implemented in Manager yet.
-        pass
+        self.manager.vector_store.update(vector_id=memory_id, payload=data)
+        return self.manager.vector_store.get(memory_id) or {}
     
     def close(self) -> None:
         self.manager.close()
