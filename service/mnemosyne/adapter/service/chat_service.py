@@ -190,5 +190,26 @@ class ChatService:
             context_parts.append(f"{i}. {mem.get('content', '')}")
         return "\n".join(context_parts)
 
+    async def update_session(self, session_id: str, updates: dict) -> ChatSession:
+        session_data = await self._store.update_session(session_id, updates)
+        if not session_data:
+            raise NotFoundError("Session", session_id)
+        return ChatSession(
+            id=session_data["id"],
+            title=session_data["title"],
+            messages=[],
+            memoryCount=session_data["memory_count"],
+            createdAt=session_data["created_at"],
+            updatedAt=session_data["updated_at"],
+            isPinned=session_data["is_pinned"],
+            isExpanded=session_data["is_expanded"]
+        )
+
     async def delete_session(self, session_id: str) -> bool:
         return await self._store.delete_session(session_id)
+
+    async def delete_message(self, session_id: str, message_id: str) -> bool:
+        return await self._store.delete_message(session_id, message_id)
+
+    async def clear_messages(self, session_id: str) -> int:
+        return await self._store.clear_messages(session_id)

@@ -136,3 +136,13 @@ async def import_memories(
 ):
     """Import API contract reserved, currently not implemented."""
     raise FeatureNotImplementedError("memories.import")
+
+@router.post("/batch", response_model=ApiResponse)
+async def batch_action(
+    request: dict,
+    service: MemoryService = Depends(get_memory_service)
+):
+    raise FeatureNotImplementedError(
+        "memories.batch",
+        message=f"Batch operations are not implemented yet"
+    )

@@ -137,6 +137,8 @@
 
 **问题：** 前端调用返回 404，用户看到模糊的"请求失败"提示。
 
+**状态：** ✅ 已修复 (2026-05-31)。新增 `updateSession`、`deleteSession`、`updateConfig`、`deleteMessage`、`clearMessages`、`regenerateMessage`（reserved）6 个路由。`backend_controller` 新增 `updateConfig` 路由。`memory_controller` 新增 `batch` 路由（reserved）。`SessionStore` 新增 `delete_message`、`clear_messages`、`get_message` 方法。
+
 **预防规则：** dev-process-frontend 规则 1。
 
 ---
@@ -146,6 +148,8 @@
 **位置：** `useChat.ts` L25-38 和 `ChatPanel.tsx` 组件中。
 
 **问题：** 调试日志在生产环境控制台输出噪音，且可能泄露敏感数据。
+
+**状态：** ✅ 已修复 (2026-05-31)。清除 26 处 `console.log`/`console.debug`（ChatPanel 11 处、ChatMessage 6 处、useChat 6 处）。`useUI.ts` 中 2 处 `console.warn` 改为 `console.error`（生产保留）。
 
 **预防规则：** dev-process-frontend 规则 4。
 

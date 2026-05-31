@@ -164,6 +164,29 @@ class BackendService:
         except:
             return []
 
+    async def update_config(self, provider: str, config: dict) -> Optional[BackendConnection]:
+        backend = self._backends.get(provider)
+        if not backend:
+            return None
+        if config.get("host") is not None:
+            backend.host = config["host"]
+        if config.get("port") is not None:
+            backend.port = config["port"]
+        if config.get("database") is not None:
+            backend.database = config["database"]
+        if config.get("vectorDimension") is not None:
+            backend.collections = [
+                CollectionStats(
+                    name=c.name,
+                    memoryCount=c.memoryCount,
+                    vectorDimension=config["vectorDimension"],
+                    indexType=c.indexType,
+                    createdAt=c.createdAt
+                )
+                for c in (backend.collections or [])
+            ]
+        return backend
+
     async def disconnect(self, provider: str) -> bool:
         if provider in self._backends:
             self._backends[provider].status = BackendStatus.DISCONNECTED

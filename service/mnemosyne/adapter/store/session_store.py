@@ -101,6 +101,45 @@ class SessionStore:
             await db.commit()
         return await self.get_session(session_id)
 
+    async def delete_message(self, session_id: str, message_id: str) -> bool:
+        await self._ensure_init()
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
+            cursor = await db.execute(
+                "DELETE FROM chat_messages WHERE id = ? AND session_id = ?",
+                (message_id, session_id)
+            )
+            await db.commit()
+            return cursor.rowcount > 0
+
+    async def clear_messages(self, session_id: str) -> int:
+        await self._ensure_init()
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
+            cursor = await db.execute(
+                "DELETE FROM chat_messages WHERE session_id = ?",
+                (session_id,)
+            )
+            await db.commit()
+            return cursor.rowcount
+
+    async def get_message(self, message_id: str) -> Optional[dict]:
+        await self._ensure_init()
+        async with aiosqlite.connect(self.db_path, timeout=30) as db:
+            async with db.execute(
+                "SELECT id, session_id, role, content, status, created_at FROM chat_messages WHERE id = ?",
+                (message_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return {
+                        "id": row[0],
+                        "session_id": row[1],
+                        "role": row[2],
+                        "content": row[3],
+                        "status": row[4],
+                        "created_at": row[5]
+                    }
+        return None
+
     async def delete_session(self, session_id: str) -> bool:
         await self._ensure_init()
         async with aiosqlite.connect(self.db_path, timeout=30) as db:

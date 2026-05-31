@@ -81,3 +81,15 @@ async def delete_collection(
         "backends.collections.delete",
         message=f"Collection deletion is not implemented yet for provider '{provider}' (name={name})"
     )
+
+@router.patch("/{provider}", response_model=ApiResponse)
+async def update_backend_config(
+    provider: str,
+    config: dict,
+    service: BackendService = Depends(get_backend_service)
+):
+    backend = await service.update_config(provider, config)
+    if not backend:
+        from ..exception.adapters import NotFoundError
+        raise NotFoundError("Backend", provider)
+    return ApiResponse(success=True, data=backend.model_dump())
